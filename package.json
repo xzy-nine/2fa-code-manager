@@ -30,12 +30,12 @@
   "author": "xzy",
   "license": "MIT",  "repository": {
     "type": "git",
-    "url": "https://github.com/xzyht-nine/2fa-code-manager.git"
+    "url": "https://github.com/xzy-nine/2fa-code-manager.git"
   },
   "bugs": {
-    "url": "https://github.com/xzyht-nine/2fa-code-manager/issues"
+    "url": "https://github.com/xzy-nine/2fa-code-manager/issues"
   },
-  "homepage": "https://github.com/xzyht-nine/2fa-code-manager#readme",
+  "homepage": "https://github.com/xzy-nine/2fa-code-manager#readme",
   "devDependencies": {
     "web-ext": "^7.0.0"
   },
