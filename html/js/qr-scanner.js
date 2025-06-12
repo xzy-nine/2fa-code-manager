@@ -310,6 +310,8 @@ class QRScanner {
 // 导出
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = QRScanner;
-} else {
+} else if (typeof window !== 'undefined') {
     window.QRScanner = QRScanner;
+} else if (typeof globalThis !== 'undefined') {
+    globalThis.QRScanner = QRScanner;
 }

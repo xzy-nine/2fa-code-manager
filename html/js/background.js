@@ -1,14 +1,18 @@
+// 导入依赖
+importScripts('./totp.js');
+importScripts('./crypto.js');
+importScripts('./local-storage.js');
+
 // 背景脚本 - 处理扩展的后台逻辑
 class BackgroundService {
     constructor() {
         this.init();
-    }
-
-    init() {
+    }    init() {
         this.setupContextMenus();
         this.setupMessageHandlers();
         this.setupTabUpdatedListener();
         this.setupInstallListener();
+        this.checkAndMigrateStorage(); // 检查并执行自动迁移
     }
 
     // 设置右键菜单
@@ -275,9 +279,7 @@ class BackgroundService {
             console.error('获取保存配置失败:', error);
             return [];
         }
-    }
-
-    // 显示通知
+    }    // 显示通知
     async showNotification(message, type = 'info', duration = 5000) {
         const iconMap = {
             success: '✅',
@@ -289,7 +291,7 @@ class BackgroundService {
         try {
             await chrome.notifications.create({
                 type: 'basic',
-                iconUrl: 'favicon.png',
+                iconUrl: chrome.runtime.getURL('favicon.png'),
                 title: '2FA验证码管家',
                 message: `${iconMap[type] || 'ℹ️'} ${message}`
             });
@@ -314,9 +316,7 @@ class BackgroundService {
                 }
             }
         });
-    }
-
-    // 监听安装事件
+    }    // 监听安装事件
     setupInstallListener() {
         chrome.runtime.onInstalled.addListener(async (details) => {
             if (details.reason === 'install') {
@@ -324,9 +324,10 @@ class BackgroundService {
                 await this.showWelcomeNotification();
                 await this.initializeDefaultSettings();
             } else if (details.reason === 'update') {
-                // 更新
+                // 更新 - 只在有实际版本变化时处理
                 await this.handleUpdate(details.previousVersion);
             }
+            // 对于其他原因（如 enable, disable），不显示通知
         });
     }
 
@@ -354,20 +355,69 @@ class BackgroundService {
             configurations: [],
             siteConfigs: {}
         });
-    }
-
-    // 处理更新
+    }    // 处理更新
     async handleUpdate(previousVersion) {
-        // 版本迁移逻辑
         const currentVersion = chrome.runtime.getManifest().version;
         
-        await this.showNotification(
-            `扩展已更新到版本 ${currentVersion}`,
-            'success'
-        );
+        // 只在版本确实有变化且为有效更新时才显示通知
+        if (previousVersion && this.isVersionUpdate(previousVersion, currentVersion)) {
+            await this.showNotification(
+                `扩展已更新到版本 ${currentVersion}`,
+                'success'
+            );
+            console.log(`扩展更新: ${previousVersion} -> ${currentVersion}`);
+            
+            // 记录更新信息
+            await this.recordVersionUpdate(previousVersion, currentVersion);
+        }
 
         // 执行必要的数据迁移
         await this.migrateData(previousVersion, currentVersion);
+    }
+
+    // 判断是否为有效的版本更新
+    isVersionUpdate(previousVersion, currentVersion) {
+        if (!previousVersion || !currentVersion) {
+            return false;
+        }
+        
+        // 简单的版本字符串比较
+        if (previousVersion === currentVersion) {
+            return false;
+        }
+        
+        // 可以添加更复杂的版本比较逻辑
+        return true;
+    }
+
+    // 记录版本更新信息
+    async recordVersionUpdate(previousVersion, currentVersion) {
+        try {
+            const updateInfo = {
+                previousVersion,
+                currentVersion,
+                updateTime: new Date().toISOString()
+            };
+            
+            // 获取历史更新记录
+            const result = await chrome.storage.local.get(['updateHistory']);
+            const updateHistory = result.updateHistory || [];
+            
+            // 添加新的更新记录
+            updateHistory.push(updateInfo);
+            
+            // 只保留最近10次更新记录
+            if (updateHistory.length > 10) {
+                updateHistory.splice(0, updateHistory.length - 10);
+            }
+            
+            await chrome.storage.local.set({ 
+                updateHistory,
+                lastVersion: currentVersion
+            });
+        } catch (error) {
+            console.error('记录版本更新失败:', error);
+        }
     }
 
     // 数据迁移
@@ -444,6 +494,76 @@ class BackgroundService {
             }
         }, 6 * 60 * 60 * 1000);
     }
+
+    // 迁移旧的本地存储到加密存储
+    async migrateToEncryptedStorage() {
+        try {
+            // 检查是否需要迁移
+            const settings = await chrome.storage.sync.get(['localStorageConfig']);
+            const migrationFlag = await chrome.storage.local.get(['migrated_to_encrypted']);
+            
+            if (!settings.localStorageConfig?.allowLocalStorage || migrationFlag.migrated_to_encrypted) {
+                return { success: true, message: '无需迁移' };
+            }
+            
+            // 获取旧的配置
+            const oldConfigs = await chrome.storage.local.get(['totpConfigs']);
+            if (!oldConfigs.totpConfigs || oldConfigs.totpConfigs.length === 0) {
+                await chrome.storage.local.set({ migrated_to_encrypted: true });
+                return { success: true, message: '无旧配置需要迁移' };
+            }
+            
+            // 初始化本地存储管理器
+            const localStorageManager = new LocalStorageManager();
+            const results = [];
+            
+            // 迁移每个配置
+            for (const config of oldConfigs.totpConfigs) {
+                const result = await localStorageManager.addLocalConfig({
+                    ...config,
+                    // 移除旧的ID，让系统重新生成
+                    id: undefined
+                });
+                results.push(result);
+            }
+            
+            const successCount = results.filter(r => r.success).length;
+            
+            if (successCount > 0) {
+                // 备份旧配置
+                await chrome.storage.local.set({ 
+                    totpConfigs_backup: oldConfigs.totpConfigs,
+                    backup_created_at: new Date().toISOString()
+                });
+                
+                // 清除旧配置
+                await chrome.storage.local.remove(['totpConfigs']);
+            }
+            
+            // 标记迁移完成
+            await chrome.storage.local.set({ migrated_to_encrypted: true });
+            
+            return { 
+                success: true, 
+                message: `成功迁移 ${successCount}/${oldConfigs.totpConfigs.length} 个配置到加密存储` 
+            };
+        } catch (error) {
+            console.error('迁移失败:', error);
+            return { success: false, message: `迁移失败: ${error.message}` };
+        }
+    }
+
+    // 检查和执行自动迁移
+    async checkAndMigrateStorage() {
+        try {
+            const result = await this.migrateToEncryptedStorage();
+            if (result.success && result.message !== '无需迁移') {
+                await this.showNotification(result.message, 'success');
+            }
+        } catch (error) {
+            console.error('自动迁移检查失败:', error);
+        }
+    }
 }
 
 // 初始化背景服务
@@ -451,10 +571,3 @@ const backgroundService = new BackgroundService();
 
 // 启动定期任务
 backgroundService.setupPeriodicTasks();
-
-// 导出供其他脚本使用
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = BackgroundService;
-} else {
-    window.BackgroundService = BackgroundService;
-}

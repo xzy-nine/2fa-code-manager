@@ -1,0 +1,135 @@
+name: 主工作流
+on:
+  push:
+    branches:
+      - main
+
+# 完整的权限设置
+permissions:
+  contents: write          # 创建 Release 和标签
+  actions: read           # 读取工作流状态
+  packages: write         # 上传包（如果需要）
+  pull-requests: write    # 更新 PR（如果需要）
+  issues: write          # 创建 Issue（如果需要）
+  repository-projects: read  # 读取项目信息
+  id-token: write        # OIDC token（如果使用）
+
+jobs:
+  version-check-and-build:
+    name: 版本检查与构建
+    uses: ./.github/workflows/版本检查与构建.yml
+    secrets: inherit
+    # 明确传递权限
+    permissions:
+      contents: read
+      actions: read
+
+  release-management:
+    name: 发布管理
+    needs: version-check-and-build
+    if: |
+      needs.version-check-and-build.outputs.is_new_version == 'true' && 
+      needs.version-check-and-build.outputs.tag_exists == 'false' &&
+      needs.version-check-and-build.result == 'success'
+    uses: ./.github/workflows/发布管理.yml
+    with:
+      version: ${{ needs.version-check-and-build.outputs.version }}
+      changelog: ${{ needs.version-check-and-build.outputs.changelog }}
+      build-path: ${{ needs.version-check-and-build.outputs.build_path }}
+    secrets: inherit
+    permissions:
+      contents: write
+      actions: read
+
+  ai-changelog-generation:
+    name: AI变更日志生成
+    needs: [version-check-and-build, release-management]
+    if: |
+      needs.version-check-and-build.outputs.is_new_version == 'true' && 
+      needs.version-check-and-build.outputs.tag_exists == 'false' &&
+      needs.release-management.result == 'success'
+    uses: ./.github/workflows/AI变更日志生成.yml
+    with:
+      version: ${{ needs.version-check-and-build.outputs.version }}
+      release-id: ${{ needs.release-management.outputs.release-id }}
+    secrets: inherit
+    permissions:
+      contents: write
+      actions: read
+
+  workflow-summary:
+    name: 工作流总结
+    runs-on: ubuntu-latest
+    needs: [version-check-and-build, release-management, ai-changelog-generation]
+    if: always()
+    steps:
+    - name: 生成工作流执行总结
+      run: |
+        echo "## 🚀 主工作流执行总结" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📊 执行状态" >> $GITHUB_STEP_SUMMARY
+        echo "| 作业 | 状态 |,结果 |" >> $GITHUB_STEP_SUMMARY
+        echo "|------|------|------|" >> $GITHUB_STEP_SUMMARY
+        echo "| 版本检查与构建 | ${{ needs.version-check-and-build.result }} | ${{ needs.version-check-and-build.result == 'success' && '✅ 成功' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 发布管理 | ${{ needs.release-management.result }} | ${{ needs.release-management.result == 'success' && '✅ 成功' || needs.release-management.result == 'skipped' && '⏭️ 跳过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| AI变更日志生成 | ${{ needs.ai-changelog-generation.result }} | ${{ needs.ai-changelog-generation.result == 'success' && '✅ 成功' || needs.ai-changelog-generation.result == 'skipped' && '⏭️ 跳过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.version-check-and-build.outputs.is_new_version }}" == "true" ]; then
+          echo "### 📦 版本信息" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 当前版本 | \`${{ needs.version-check-and-build.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 是否新版本 | ${{ needs.version-check-and-build.outputs.is_new_version == 'true' && '✅ 是' || '❌ 否' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 标签是否存在 | ${{ needs.version-check-and-build.outputs.tag_exists == 'true' && '⚠️ 已存在' || '✅ 不存在' }} |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.release-management.result }}" == "success" ]; then
+            echo "| Release ID | \`${{ needs.release-management.outputs.release-id }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Release URL | [${{ needs.release-management.outputs.release-url }}](${{ needs.release-management.outputs.release-url }}) |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "### 🎯 执行结果" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.version-check-and-build.outputs.is_new_version }}" == "true" ] && [ "${{ needs.version-check-and-build.outputs.tag_exists }}" == "false" ]; then
+          if [ "${{ needs.release-management.result }}" == "success" ]; then
+            echo "🎉 **发布成功！**" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 版本检查通过" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 构建包创建成功" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Release发布成功" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ needs.ai-changelog-generation.result }}" == "success" ]; then
+              echo "- ✅ AI变更日志生成成功" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ⚠️ AI变更日志生成失败或跳过" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ **发布失败！**" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 版本检查通过" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 构建包创建成功" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ Release发布失败" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "ℹ️ **无需发布**" >> $GITHUB_STEP_SUMMARY
+          echo "- 版本未更新或标签已存在" >> $GITHUB_STEP_SUMMARY
+        fi
+
+  debug-outputs:
+    name: 调试输出
+    needs: version-check-and-build
+    runs-on: ubuntu-latest
+    steps:
+    - name: 输出调试信息
+      run: |
+        echo "版本检查结果:"
+        echo "- version: ${{ needs.version-check-and-build.outputs.version }}"
+        echo "- is_new_version: ${{ needs.version-check-and-build.outputs.is_new_version }}"
+        echo "- tag_exists: ${{ needs.version-check-and-build.outputs.tag_exists }}"
+        echo "- result: ${{ needs.version-check-and-build.result }}"
+        echo "- build_path: ${{ needs.version-check-and-build.outputs.build_path }}"
+        echo "- changelog length: $(echo '${{ needs.version-check-and-build.outputs.changelog }}' | wc -c)"
+        echo ""
+        echo "条件判断:"
+        echo "- is_new_version == 'true': ${{ needs.version-check-and-build.outputs.is_new_version == 'true' }}"
+        echo "- tag_exists == 'false': ${{ needs.version-check-and-build.outputs.tag_exists == 'false' }}"
+        echo "- result == 'success': ${{ needs.version-check-and-build.result == 'success' }}"
+        echo ""
+        echo "完整条件: ${{ needs.version-check-and-build.outputs.is_new_version == 'true' && needs.version-check-and-build.outputs.tag_exists == 'false' && needs.version-check-and-build.result == 'success' }}"

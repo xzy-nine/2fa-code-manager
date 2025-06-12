@@ -1,0 +1,336 @@
+name: AI变更日志生成
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: '目标版本或标签（如：v1.0.0、latest 或 all）'
+        required: true
+        type: string
+        default: 'latest'
+  workflow_call:
+    inputs:
+      version:
+        description: '版本号'
+        required: true
+        type: string
+      release-id:
+        description: 'Release ID'
+        required: true
+        type: string
+    outputs:
+      ai_optimized:
+        description: "是否完成AI优化"
+        value: ${{ jobs.ai-changelog-generation.outputs.ai_optimized }}
+      ai_success:
+        description: "AI是否成功调用"
+        value: ${{ jobs.ai-changelog-generation.outputs.ai_success }}
+      total_commits:
+        description: "处理的提交总数"
+        value: ${{ jobs.ai-changelog-generation.outputs.total_commits }}
+      processed_releases:
+        description: "处理的发布数量"
+        value: ${{ jobs.ai-changelog-generation.outputs.processed_releases }}
+
+jobs:
+  ai-changelog-generation:
+    name: AI变更日志生成
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      ai_optimized: ${{ steps.run-generator.outputs.ai_optimized }}
+      ai_success: ${{ steps.run-generator.outputs.ai_success }}
+      total_commits: ${{ steps.run-generator.outputs.total_commits }}
+      generation_mode: ${{ steps.run-generator.outputs.generation_mode }}
+      processed_releases: ${{ steps.run-generator.outputs.processed_releases }}
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: 初始化摘要
+      run: |
+        echo "# 🤖 AI变更日志生成 - 执行中" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📋 执行信息" >> $GITHUB_STEP_SUMMARY
+        echo "| 项目 | 状态 |" >> $GITHUB_STEP_SUMMARY
+        echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+        
+        # 执行模式信息
+        if [ "${{ github.event_name }}" = "workflow_call" ]; then
+          echo "| 执行模式 | 🤖 自动触发 (workflow_call) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 触发版本 | \`${{ inputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release ID | \`${{ inputs.release-id }}\` |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| 执行模式 | 📝 手动触发 (workflow_dispatch) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 目标参数 | \`${{ inputs.target }}\` |" >> $GITHUB_STEP_SUMMARY
+          
+          # 根据目标类型添加说明
+          if [ "${{ inputs.target }}" = "all" ]; then
+            echo "| 处理类型 | 🔄 批量处理所有Release |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ inputs.target }}" = "latest" ]; then
+            echo "| 处理类型 | 🎯 处理最新Release |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 处理类型 | 🎯 处理指定版本 |" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+        
+        echo "| 开始时间 | $(date '+%Y-%m-%d %H:%M:%S') |" >> $GITHUB_STEP_SUMMARY
+        echo "| 当前状态 | ⏳ 初始化中... |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📊 执行进度" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ 代码检出完成" >> $GITHUB_STEP_SUMMARY
+        echo "- ⏳ 准备Python环境..." >> $GITHUB_STEP_SUMMARY
+
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: 更新环境准备摘要
+      run: |
+        # 更新摘要 - 环境准备
+        {
+          echo "# 🤖 AI变更日志生成 - 执行中"
+          echo ""
+          echo "## 📋 执行信息"
+          echo "| 项目 | 状态 |"
+          echo "|------|------|"
+          
+          # 执行模式信息
+          if [ "${{ github.event_name }}" = "workflow_call" ]; then
+            echo "| 执行模式 | 🤖 自动触发 (workflow_call) |"
+            echo "| 触发版本 | \`${{ inputs.version }}\` |"
+            echo "| Release ID | \`${{ inputs.release-id }}\` |"
+          else
+            echo "| 执行模式 | 📝 手动触发 (workflow_dispatch) |"
+            echo "| 目标参数 | \`${{ inputs.target }}\` |"
+            
+            if [ "${{ inputs.target }}" = "all" ]; then
+              echo "| 处理类型 | 🔄 批量处理所有Release |"
+            elif [ "${{ inputs.target }}" = "latest" ]; then
+              echo "| 处理类型 | 🎯 处理最新Release |"
+            else
+              echo "| 处理类型 | 🎯 处理指定版本 |"
+            fi
+          fi
+          
+          echo "| 开始时间 | $(date '+%Y-%m-%d %H:%M:%S') |"
+          echo "| 当前状态 | ⏳ 环境准备中... |"
+          echo ""
+          echo "## 📊 执行进度"
+          echo "- ✅ 代码检出完成"
+          echo "- ✅ Python环境设置完成"
+          echo "- ⏳ 安装依赖包..."
+        } > $GITHUB_STEP_SUMMARY
+
+    - name: 安装Python依赖
+      run: |
+        pip install -r .github/workflows/ai-log-work-py/requirements.txt
+
+    - name: 更新依赖安装摘要
+      run: |
+        # 更新摘要 - 依赖安装
+        {
+          echo "# 🤖 AI变更日志生成 - 执行中"
+          echo ""
+          echo "## 📋 执行信息"
+          echo "| 项目 | 状态 |"
+          echo "|------|------|"
+          
+          # 执行模式信息
+          if [ "${{ github.event_name }}" = "workflow_call" ]; then
+            echo "| 执行模式 | 🤖 自动触发 (workflow_call) |"
+            echo "| 触发版本 | \`${{ inputs.version }}\` |"
+            echo "| Release ID | \`${{ inputs.release-id }}\` |"
+          else
+            echo "| 执行模式 | 📝 手动触发 (workflow_dispatch) |"
+            echo "| 目标参数 | \`${{ inputs.target }}\` |"
+            
+            if [ "${{ inputs.target }}" = "all" ]; then
+              echo "| 处理类型 | 🔄 批量处理所有Release |"
+            elif [ "${{ inputs.target }}" = "latest" ]; then
+              echo "| 处理类型 | 🎯 处理最新Release |"
+            else
+              echo "| 处理类型 | 🎯 处理指定版本 |"
+            fi
+          fi
+          
+          echo "| 开始时间 | $(date '+%Y-%m-%d %H:%M:%S') |"
+          echo "| 当前状态 | 🚀 开始生成变更日志... |"
+          echo ""
+          echo "## 📊 执行进度"
+          echo "- ✅ 代码检出完成"
+          echo "- ✅ Python环境设置完成"
+          echo "- ✅ 依赖包安装完成"
+          echo "- 🚀 正在执行AI变更日志生成..."
+        } > $GITHUB_STEP_SUMMARY
+
+    - name: 运行AI变更日志生成器
+      id: run-generator
+      run: |
+        cd .github/workflows/ai-log-work-py
+        
+        echo "🚀 开始执行AI变更日志生成..."
+        echo "==========================================​============================="
+        
+        # 根据触发方式设置参数
+        if [ "${{ github.event_name }}" = "workflow_call" ]; then
+          # 自动触发模式
+          echo "🤖 执行模式: 自动触发 (workflow_call)"
+          echo "📋 版本号: ${{ inputs.version }}"
+          echo "🏷️ Release ID: ${{ inputs.release-id }}"
+          echo "============================================​========================="
+            python changelog.py \
+            --version "${{ inputs.version }}" \
+            --release-id "${{ inputs.release-id }}" \
+            --event-name "workflow_call" \
+            --repo "${{ github.repository }}" \
+            --github-token "${{ secrets.PAT }}" \
+            --deepseek-api-key "${{ secrets.DEEPSEEK_API_KEY }}"
+        else
+          # 手动触发模式
+          echo "📝 执行模式: 手动触发 (workflow_dispatch)"
+          echo "🎯 目标参数: ${{ inputs.target }}"
+          
+          # 根据目标类型输出不同提示
+          if [ "${{ inputs.target }}" = "all" ]; then
+            echo "🔄 批量处理模式：将处理所有Release"
+            echo "⏱️ 预计需要较长时间，请耐心等待..."
+            echo "📊 实时进度将在下方显示"
+          elif [ "${{ inputs.target }}" = "latest" ]; then
+            echo "🎯 单个处理模式：处理最新Release"
+          else
+            echo "🎯 单个处理模式：处理指定版本 ${{ inputs.target }}"
+          fi
+          
+          echo "============================================​========================="
+            python changelog.py \
+            --target "${{ inputs.target }}" \
+            --event-name "workflow_dispatch" \
+            --repo "${{ github.repository }}" \
+            --github-token "${{ secrets.PAT }}" \
+            --deepseek-api-key "${{ secrets.DEEPSEEK_API_KEY }}"
+        fi
+        
+        # 捕获退出码
+        exit_code=$?
+        
+        echo ""
+        echo "============================================​========================="
+        
+        # 设置输出变量和最终状态
+        if [ $exit_code -eq 0 ]; then
+          echo "ai_optimized=true" >> $GITHUB_OUTPUT
+          echo "🎉 AI变更日志生成流程完成!"
+          echo "✅ 状态: 成功"
+        else
+          echo "ai_optimized=false" >> $GITHUB_OUTPUT
+          echo "💥 AI变更日志生成流程失败!"
+          echo "❌ 状态: 失败 (退出码: $exit_code)"
+        fi
+        
+        echo "============================================​========================="
+        
+        exit $exit_code
+
+    - name: 更新最终执行摘要
+      if: always()
+      run: |
+        # 获取当前时间
+        current_time=$(date '+%Y-%m-%d %H:%M:%S')
+        
+        # 生成最终摘要
+        {
+          echo "# 🎯 AI变更日志生成 - 执行完成"
+          echo ""
+          echo "## 📋 执行结果"
+          echo "| 项目 | 结果 |"
+          echo "|------|------|"
+          
+          # 执行模式信息
+          if [ "${{ github.event_name }}" = "workflow_call" ]; then
+            echo "| 执行模式 | 🤖 自动触发 (workflow_call) |"
+            echo "| 触发版本 | \`${{ inputs.version }}\` |"
+            echo "| Release ID | \`${{ inputs.release-id }}\` |"
+          else
+            echo "| 执行模式 | 📝 手动触发 (workflow_dispatch) |"
+            echo "| 目标参数 | \`${{ inputs.target }}\` |"
+            
+            # 根据目标类型添加说明
+            if [ "${{ inputs.target }}" = "all" ]; then
+              echo "| 处理类型 | 🔄 批量处理所有Release |"
+            elif [ "${{ inputs.target }}" = "latest" ]; then
+              echo "| 处理类型 | 🎯 处理最新Release |"
+            else
+              echo "| 处理类型 | 🎯 处理指定版本 |"
+            fi
+          fi
+          
+          # 执行结果
+          echo "| 执行状态 | ${{ steps.run-generator.outcome == 'success' && '✅ 成功' || '❌ 失败' }} |"
+          echo "| AI优化状态 | ${{ steps.run-generator.outputs.ai_optimized == 'true' && '✅ 已完成' || '❌ 未完成' }} |"
+          
+          # AI调用结果
+          if [ "${{ steps.run-generator.outputs.ai_success }}" = "true" ]; then
+            echo "| AI生成方式 | 🧠 AI智能生成 |"
+          else
+            echo "| AI生成方式 | 📝 基础规则生成 |"
+          fi
+          
+          # 统计信息
+          if [ "${{ steps.run-generator.outputs.total_commits }}" != "" ]; then
+            echo "| 处理提交数 | ${{ steps.run-generator.outputs.total_commits }} 个 |"
+          fi
+          
+          if [ "${{ steps.run-generator.outputs.processed_releases }}" != "" ]; then
+            echo "| 处理发布数 | ${{ steps.run-generator.outputs.processed_releases }} 个 |"
+          fi
+          
+          # 执行时间
+          echo "| 完成时间 | $current_time |"
+          echo ""
+          
+          # 根据结果添加不同的说明
+          if [ "${{ steps.run-generator.outcome }}" = "success" ]; then
+            echo "## ✅ 执行成功"
+            echo ""
+            echo "变更日志已成功生成并更新到对应的Release页面。"
+            echo ""
+            
+            if [ "${{ steps.run-generator.outputs.ai_success }}" = "true" ]; then
+              echo "🧠 **AI智能分析**: 使用DeepSeek API成功分析提交记录，生成了智能化的变更日志。"
+            else
+              echo "📝 **基础规则生成**: AI调用失败，使用基础规则生成了变更日志。"
+            fi
+            
+            echo ""
+            echo "### 🔗 相关链接"
+            echo "- 检查更新的Release页面确认变更日志"
+            echo "- 如有问题，请查看详细执行日志"
+            
+          else
+            echo "## ❌ 执行失败"
+            echo ""
+            echo "变更日志生成过程中遇到错误，请检查执行日志获取详细信息。"
+            echo ""
+            echo "### 🔍 故障排查"
+            echo "1. 检查GitHub Token权限"
+            echo "2. 检查DeepSeek API Key配置"
+            echo "3. 检查目标版本是否存在"
+            echo "4. 查看详细错误日志"
+          fi
+          
+          echo ""
+          echo "---"
+          echo "*由 GitHub Actions 自动生成 @ $current_time*"
+          
+        } > $GITHUB_STEP_SUMMARY
+
+    - name: 清理临时文件
+      if: always()
+      run: |
+        find . -name "*.tmp" -delete 2>/dev/null || true
+        find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true

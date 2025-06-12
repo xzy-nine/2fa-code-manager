@@ -195,6 +195,8 @@ class CryptoManager {
 // 导出
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = CryptoManager;
-} else {
+} else if (typeof window !== 'undefined') {
     window.CryptoManager = CryptoManager;
+} else if (typeof globalThis !== 'undefined') {
+    globalThis.CryptoManager = CryptoManager;
 }

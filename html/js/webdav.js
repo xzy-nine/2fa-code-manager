@@ -352,6 +352,8 @@ class WebDAVClient {
 // 导出
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = WebDAVClient;
-} else {
+} else if (typeof window !== 'undefined') {
     window.WebDAVClient = WebDAVClient;
+} else if (typeof globalThis !== 'undefined') {
+    globalThis.WebDAVClient = WebDAVClient;
 }

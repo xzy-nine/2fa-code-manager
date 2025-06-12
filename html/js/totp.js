@@ -197,6 +197,8 @@ class TOTPGenerator {
 // 导出
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = TOTPGenerator;
-} else {
+} else if (typeof window !== 'undefined') {
     window.TOTPGenerator = TOTPGenerator;
+} else if (typeof globalThis !== 'undefined') {
+    globalThis.TOTPGenerator = TOTPGenerator;
 }
