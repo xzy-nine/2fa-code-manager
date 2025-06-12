@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2FA验证码测试页面</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e1e1;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .code-input {
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            text-align: center;
+            letter-spacing: 3px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        .section h2 {
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .test-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .qr-container {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .qr-code {
+            display: inline-block;
+            padding: 20px;
+            background: white;
+            border: 2px solid #e1e1e1;
+            border-radius: 8px;
+        }
+        
+        .sample-configs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .config-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e1e1e1;
+        }
+        
+        .config-card h4 {
+            margin-top: 0;
+            color: #667eea;
+        }
+        
+        .config-uri {
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 2FA验证码扩展测试页面</h1>
+        
+        <div class="test-info">
+            <strong>使用说明：</strong>
+            <ul>
+                <li>点击下方的验证码输入框，测试扩展的自动识别功能</li>
+                <li>点击浏览器扩展图标，测试填充功能</li>
+                <li>使用二维码区域测试扫描功能</li>
+            </ul>
+        </div>
+        
+        <!-- 模拟登录表单 -->
+        <div class="section">
+            <h2>模拟登录表单</h2>
+            <form>
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" name="username" placeholder="请输入用户名">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="password" placeholder="请输入密码">
+                </div>
+                
+                <div class="form-group">
+                    <label for="otp">验证码 (6位数字)</label>
+                    <input type="text" id="otp" name="otp" placeholder="请输入6位验证码" 
+                           maxlength="6" class="code-input">
+                </div>
+                
+                <button type="submit" class="btn">登录</button>
+            </form>
+        </div>
+        
+        <!-- 不同类型的验证码输入框 -->
+        <div class="section">
+            <h2>不同类型的验证码输入框测试</h2>
+            
+            <div class="form-group">
+                <label for="totp-code">TOTP验证码</label>
+                <input type="number" id="totp-code" name="totp_code" placeholder="TOTP验证码" maxlength="6">
+            </div>
+            
+            <div class="form-group">
+                <label for="auth-token">身份验证令牌</label>
+                <input type="text" id="auth-token" name="auth_token" placeholder="请输入身份验证令牌" maxlength="8">
+            </div>
+            
+            <div class="form-group">
+                <label for="sms-code">短信验证码</label>
+                <input type="tel" id="sms-code" name="sms_code" placeholder="请输入短信验证码" maxlength="6">
+            </div>
+            
+            <div class="form-group">
+                <label for="google-auth">Google Authenticator</label>
+                <input type="text" id="google-auth" class="google-authenticator-code" 
+                       placeholder="Google验证码" maxlength="6">
+            </div>
+            
+            <div class="form-group">
+                <label for="microsoft-auth">Microsoft Authenticator</label>
+                <input type="number" id="microsoft-auth" class="microsoft-auth-code" 
+                       placeholder="Microsoft验证码" maxlength="6">
+            </div>
+        </div>
+        
+        <!-- 二维码测试区域 -->
+        <div class="section">
+            <h2>二维码扫描测试</h2>
+            <div class="qr-container">
+                <div class="qr-code">
+                    <div id="qrcode"></div>
+                    <p>扫描此二维码测试导入功能</p>
+                </div>
+            </div>
+            
+            <div class="sample-configs">
+                <div class="config-card">
+                    <h4>示例配置 1 - GitHub</h4>
+                    <p><strong>账户:</strong> user@github.com</p>
+                    <p><strong>发行方:</strong> GitHub</p>
+                    <div class="config-uri">otpauth://totp/GitHub:user@github.com?secret=JBSWY3DPEHPK3PXP&issuer=GitHub</div>
+                </div>
+                
+                <div class="config-card">
+                    <h4>示例配置 2 - Google</h4>
+                    <p><strong>账户:</strong> user@gmail.com</p>
+                    <p><strong>发行方:</strong> Google</p>
+                    <div class="config-uri">otpauth://totp/Google:user@gmail.com?secret=KBSWY3DPEHPK3PXP&issuer=Google</div>
+                </div>
+                
+                <div class="config-card">
+                    <h4>示例配置 3 - Microsoft</h4>
+                    <p><strong>账户:</strong> user@outlook.com</p>
+                    <p><strong>发行方:</strong> Microsoft</p>
+                    <div class="config-uri">otpauth://totp/Microsoft:user@outlook.com?secret=LBSWY3DPEHPK3PXP&issuer=Microsoft</div>
+                </div>
+                
+                <div class="config-card">
+                    <h4>示例配置 4 - 测试账户</h4>
+                    <p><strong>账户:</strong> test@example.com</p>
+                    <p><strong>发行方:</strong> Example Corp</p>
+                    <div class="config-uri">otpauth://totp/Example:test@example.com?secret=MBSWY3DPEHPK3PXP&issuer=Example</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 功能测试区域 -->
+        <div class="section">
+            <h2>功能测试</h2>
+            
+            <div class="form-group">
+                <button type="button" class="btn" onclick="testAutoDetection()">
+                    测试自动检测功能
+                </button>
+            </div>
+            
+            <div class="form-group">
+                <button type="button" class="btn" onclick="simulateCodeInput()">
+                    模拟验证码输入
+                </button>
+            </div>
+            
+            <div class="form-group">
+                <button type="button" class="btn" onclick="clearAllInputs()">
+                    清空所有输入框
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- QR Code生成库 -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    
+    <script>
+        // 生成测试二维码
+        const testURI = 'otpauth://totp/TestSite:testuser@example.com?secret=JBSWY3DPEHPK3PXP&issuer=TestSite';
+        
+        QRCode.toCanvas(document.getElementById('qrcode'), testURI, {
+            width: 200,
+            margin: 2,
+            color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+            }
+        }, function (error) {
+            if (error) console.error(error);
+            console.log('QR code generated successfully!');
+        });
+        
+        // 测试函数
+        function testAutoDetection() {
+            alert('请点击任意验证码输入框，测试扩展的自动检测功能！');
+        }
+        
+        function simulateCodeInput() {
+            const inputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="tel"]');
+            inputs.forEach((input, index) => {
+                if (input.maxLength >= 4 && input.maxLength <= 8) {
+                    setTimeout(() => {
+                        input.value = Math.floor(Math.random() * 900000 + 100000).toString();
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                    }, index * 200);
+                }
+            });
+        }
+        
+        function clearAllInputs() {
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.value = '';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }
+        
+        // 监听输入框点击事件
+        document.addEventListener('click', function(e) {
+            if (e.target.tagName === 'INPUT') {
+                console.log('输入框被点击:', {
+                    id: e.target.id,
+                    name: e.target.name,
+                    type: e.target.type,
+                    placeholder: e.target.placeholder,
+                    maxLength: e.target.maxLength,
+                    className: e.target.className
+                });
+            }
+        });
+        
+        // 模拟表单提交
+        document.querySelector('form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const otpValue = document.getElementById('otp').value;
+            if (otpValue) {
+                alert(`模拟登录成功！验证码: ${otpValue}`);
+            } else {
+                alert('请输入验证码！');
+            }
+        });
+        
+        // 输入框状态监听
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', function() {
+                console.log('输入框获得焦点:', this.id || this.name || this.placeholder);
+            });
+            
+            input.addEventListener('input', function() {
+                if (this.value.length === parseInt(this.maxLength)) {
+                    console.log('验证码输入完成:', this.value);
+                }
+            });
+        });
+        
+        // 页面加载完成提示
+        window.addEventListener('load', function() {
+            console.log('测试页面加载完成，可以开始测试扩展功能！');
+        });
+    </script>
+</body>
+</html>

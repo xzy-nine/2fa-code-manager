@@ -1,0 +1,64 @@
+{
+  "name": "2fa-code-manager",
+  "version": "1.0.0",
+  "description": "一个功能强大的2FA验证码管理浏览器扩展，支持WebDAV云端同步、本地存储、二维码扫描和生物识别验证",
+  "author": "xzy",
+  "buildDate": "2025-06-12T11:31:24.503Z",
+  "files": [
+    {
+      "path": "css/popup.css",
+      "size": 16075,
+      "modified": "2025-06-12T11:23:33.593Z"
+    },
+    {
+      "path": "favicon.png",
+      "size": 29224,
+      "modified": "2025-06-12T10:49:33.971Z"
+    },
+    {
+      "path": "html/popup.html",
+      "size": 11269,
+      "modified": "2025-06-12T11:23:33.593Z"
+    },
+    {
+      "path": "js/background.js",
+      "size": 15192,
+      "modified": "2025-06-12T11:23:33.596Z"
+    },
+    {
+      "path": "js/content.js",
+      "size": 15765,
+      "modified": "2025-06-12T11:23:33.596Z"
+    },
+    {
+      "path": "js/crypto.js",
+      "size": 6618,
+      "modified": "2025-06-12T11:23:33.593Z"
+    },
+    {
+      "path": "js/popup.js",
+      "size": 27779,
+      "modified": "2025-06-12T11:23:33.596Z"
+    },
+    {
+      "path": "js/qr-scanner.js",
+      "size": 10701,
+      "modified": "2025-06-12T11:23:33.594Z"
+    },
+    {
+      "path": "js/totp.js",
+      "size": 6883,
+      "modified": "2025-06-12T11:23:33.593Z"
+    },
+    {
+      "path": "js/webdav.js",
+      "size": 12711,
+      "modified": "2025-06-12T11:23:33.594Z"
+    },
+    {
+      "path": "manifest.json",
+      "size": 1103,
+      "modified": "2025-06-12T11:23:33.571Z"
+    }
+  ]
+}

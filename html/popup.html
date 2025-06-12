@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2FA验证码管家</title>
+    <link rel="stylesheet" href="../css/popup.css">
+</head>
+<body>
+    <div class="popup-container">
+        <!-- 标签页导航 -->
+        <div class="popup-tabs">
+            <button class="popup-tab-btn active" data-tab="fill">
+                <span class="tab-icon">🔐</span>
+                <span class="tab-label">填充</span>
+            </button>
+            <button class="popup-tab-btn" data-tab="local">
+                <span class="tab-icon">📱</span>
+                <span class="tab-label">本地</span>
+            </button>
+            <button class="popup-tab-btn" data-tab="scan">
+                <span class="tab-icon">📷</span>
+                <span class="tab-label">扫描</span>
+            </button>
+            <button class="popup-tab-btn" data-tab="settings">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-label">设置</span>
+            </button>
+        </div>
+
+        <!-- 标签页内容 -->
+        <div class="popup-content">
+            <!-- 填充标签页 -->
+            <div class="popup-tab-content active" id="fill">
+                <div class="tab-header">
+                    <h3>验证码填充</h3>
+                    <div class="auth-status" id="authStatus">
+                        <span class="status-indicator"></span>
+                        <span class="status-text">未认证</span>
+                    </div>
+                </div>
+                
+                <div class="auth-section" id="authSection">
+                    <div class="auth-prompt">
+                        <div class="auth-icon">🔐</div>
+                        <p>请进行身份验证后使用云端验证码</p>
+                        <button id="authBtn" class="auth-btn">
+                            <span>🔑</span>
+                            <span>生物识别验证</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="fill-section" id="fillSection" style="display: none;">
+                    <div class="current-site" id="currentSite">
+                        <div class="site-info">
+                            <div class="site-icon">🌐</div>
+                            <div class="site-details">
+                                <div class="site-name">当前网站</div>
+                                <div class="site-url">请先选择输入框</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button id="fillBtn" class="primary-btn" disabled>
+                            <span>🔐</span>
+                            <span>填充验证码</span>
+                        </button>
+                        <button id="quickFillBtn" class="secondary-btn" disabled>
+                            <span>⚡</span>
+                            <span>快速填充</span>
+                        </button>
+                    </div>
+
+                    <div class="config-list" id="configList" style="display: none;">
+                        <div class="list-header">
+                            <h4>选择配置</h4>
+                            <button id="closeConfigList" class="close-btn">×</button>
+                        </div>
+                        <div class="config-items" id="configItems">
+                            <div class="loading">正在加载配置...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 本地标签页 -->
+            <div class="popup-tab-content" id="local">
+                <div class="tab-header">
+                    <h3>本地验证码</h3>
+                    <button id="refreshLocal" class="refresh-btn">🔄</button>
+                </div>
+                
+                <div class="local-auth-section" id="localAuthSection">
+                    <div class="auth-prompt">
+                        <div class="auth-icon">🔒</div>
+                        <p>请验证身份后查看本地验证码</p>
+                        <button id="localAuthBtn" class="auth-btn">
+                            <span>🔑</span>
+                            <span>解锁本地验证码</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="local-codes" id="localCodes" style="display: none;">
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>暂无本地验证码</p>
+                        <p class="empty-tip">在设置中添加本地存储的验证码</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 扫描标签页 -->
+            <div class="popup-tab-content" id="scan">
+                <div class="tab-header">
+                    <h3>扫描二维码</h3>
+                </div>
+                
+                <div class="scan-options">
+                    <button id="cameraBtn" class="scan-btn">
+                        <div class="scan-icon">📷</div>
+                        <div class="scan-text">
+                            <div class="scan-title">摄像头扫描</div>
+                            <div class="scan-desc">使用摄像头扫描二维码</div>
+                        </div>
+                    </button>
+                    
+                    <button id="screenBtn" class="scan-btn">
+                        <div class="scan-icon">🖥️</div>
+                        <div class="scan-text">
+                            <div class="scan-title">屏幕识别</div>
+                            <div class="scan-desc">识别当前页面的二维码</div>
+                        </div>
+                    </button>
+                </div>
+
+                <div class="scan-area" id="scanArea" style="display: none;">
+                    <div class="camera-container">
+                        <video id="cameraVideo" autoplay playsinline></video>
+                        <canvas id="scanCanvas" style="display: none;"></canvas>
+                        <div class="scan-overlay">
+                            <div class="scan-frame"></div>
+                        </div>
+                    </div>
+                    <div class="scan-controls">
+                        <button id="captureBtn" class="capture-btn">拍照识别</button>
+                        <button id="stopScanBtn" class="stop-btn">停止扫描</button>
+                    </div>
+                </div>
+
+                <div class="scan-result" id="scanResult" style="display: none;">
+                    <div class="result-header">
+                        <h4>扫描结果</h4>
+                    </div>
+                    <div class="result-content">
+                        <div class="qr-info" id="qrInfo"></div>
+                        <div class="save-options">
+                            <input type="text" id="configName" placeholder="配置名称" class="config-input">
+                            <button id="saveConfig" class="save-btn">保存配置</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 设置标签页 -->
+            <div class="popup-tab-content" id="settings">
+                <div class="tab-header">
+                    <h3>设置</h3>
+                </div>
+                
+                <div class="settings-content">
+                    <div class="setting-group">
+                        <h4>WebDAV 配置</h4>
+                        <div class="setting-item">
+                            <label>服务器地址</label>
+                            <input type="url" id="webdavUrl" placeholder="https://your-webdav-server.com" class="setting-input">
+                        </div>
+                        <div class="setting-item">
+                            <label>用户名</label>
+                            <input type="text" id="webdavUsername" placeholder="用户名" class="setting-input">
+                        </div>
+                        <div class="setting-item">
+                            <label>密码</label>
+                            <input type="password" id="webdavPassword" placeholder="密码" class="setting-input">
+                        </div>
+                        <button id="testConnection" class="test-btn">测试连接</button>
+                    </div>
+
+                    <div class="setting-group">
+                        <h4>加密设置</h4>
+                        <div class="setting-item">
+                            <label>加密密钥</label>
+                            <input type="password" id="encryptionKey" placeholder="留空使用简单加密" class="setting-input">
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="enableBiometric" class="setting-checkbox">
+                                启用生物识别验证
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="setting-group">
+                        <h4>本地存储</h4>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="enableLocalStorage" class="setting-checkbox">
+                                允许本地存储验证码
+                            </label>
+                        </div>
+                        <button id="manageLocal" class="manage-btn">管理本地验证码</button>
+                    </div>
+
+                    <div class="setting-actions">
+                        <button id="saveSettings" class="save-settings-btn">保存设置</button>
+                        <button id="exportSettings" class="export-btn">导出设置</button>
+                        <button id="importSettings" class="import-btn">导入设置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框 -->
+    <div class="modal" id="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">标题</h3>
+                <button class="modal-close" id="modalClose">×</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- 动态内容 -->
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/crypto.js"></script>
+    <script src="../js/totp.js"></script>
+    <script src="../js/webdav.js"></script>
+    <script src="../js/qr-scanner.js"></script>
+    <script src="../js/popup.js"></script>
+</body>
+</html>

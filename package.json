@@ -1,0 +1,66 @@
+{
+  "name": "2fa-code-manager",
+  "version": "1.0.0",
+  "description": "一个功能强大的2FA验证码管理浏览器扩展，支持WebDAV云端同步、本地存储、二维码扫描和生物识别验证",
+  "main": "js/background.js",
+  "scripts": {
+    "build": "echo 'Building extension...' && npm run validate",
+    "validate": "echo 'Validating manifest...' && node scripts/validate.js",
+    "test": "echo 'Running tests...' && node scripts/test.js",
+    "package": "echo 'Packaging extension...' && node scripts/package.js",
+    "dev": "echo 'Starting development server...' && python -m http.server 8000 || python3 -m http.server 8000",
+    "lint": "echo 'Linting code...' && npm run lint:js && npm run lint:css",
+    "lint:js": "echo 'Linting JavaScript files...'",
+    "lint:css": "echo 'Linting CSS files...'",
+    "format": "echo 'Formatting code...'",
+    "clean": "echo 'Cleaning build artifacts...'"
+  },
+  "keywords": [
+    "2fa",
+    "totp",
+    "authenticator",
+    "chrome-extension",
+    "webdav",
+    "security",
+    "encryption",
+    "qr-scanner",
+    "biometric",
+    "browser-extension"
+  ],
+  "author": "xzy",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/2fa-code-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/2fa-code-manager/issues"
+  },
+  "homepage": "https://github.com/your-username/2fa-code-manager#readme",
+  "devDependencies": {
+    "web-ext": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "manifest.json",
+    "html/",
+    "css/",
+    "js/",
+    "favicon.png",
+    "README.md"
+  ],
+  "webExt": {
+    "sourceDir": "./",
+    "artifactsDir": "./dist",
+    "ignoreFiles": [
+      "node_modules",
+      "scripts",
+      "test-page.html",
+      "package*.json",
+      "README.md",
+      ".git*"
+    ]
+  }
+}

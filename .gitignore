@@ -1,0 +1,125 @@
+# 依赖文件
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 构建输出
+dist/
+build/
+*.zip
+*.crx
+*.pem
+
+# 开发工具
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志文件
+logs/
+*.log
+
+# 运行时数据
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# 覆盖率目录
+coverage/
+.nyc_output/
+
+# 依赖目录
+.npm
+.eslintcache
+
+# 可选的npm缓存目录
+.npm
+
+# 可选的REPL历史
+.node_repl_history
+
+# 输出的npm包
+*.tgz
+
+# Yarn完整性文件
+.yarn-integrity
+
+# dotenv环境变量文件
+.env
+.env.test
+.env.production
+.env.local
+
+# 临时文件
+tmp/
+temp/
+
+# 操作系统生成的文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows 图像文件缓存
+Thumbs.db
+ehthumbs.db
+
+# Windows 文件夹配置文件
+Desktop.ini
+
+# Windows 回收站
+$RECYCLE.BIN/
+
+# Windows 快捷方式
+*.lnk
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# 备份文件
+*.backup
+*.bak
+*.orig
+
+# 测试相关
+test-results/
+coverage/
+
+# 发布相关
+releases/
+publish/
+
+# 配置文件（包含敏感信息）
+config.local.js
+secrets.json
+.env.local
+
+# 调试文件
+debug.log
+error.log
+
+# 扩展特定文件
+*.crx
+*.pem
+web-ext-artifacts/
+
+# 编辑器文件
+*.sublime-*
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# 缓存
+.cache/
+.parcel-cache/
