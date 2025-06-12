@@ -1,5 +1,5 @@
 // TOTP验证码生成模块
-class TOTPGenerator {
+export class TOTPGenerator {
     constructor() {
         this.timeStep = 30; // 30秒时间步长
         this.digits = 6;    // 6位验证码

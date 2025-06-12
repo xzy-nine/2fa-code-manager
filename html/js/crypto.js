@@ -1,5 +1,5 @@
 // 加密解密模块
-class CryptoManager {
+export class CryptoManager {
     constructor() {
         this.defaultKey = 'default-2fa-key-2025';
     }

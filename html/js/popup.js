@@ -1,5 +1,11 @@
 // 弹出页面主脚本
-class PopupManager {    constructor() {
+import { CryptoManager } from './crypto.js';
+import { TOTPGenerator } from './totp.js';
+import { WebDAVClient } from './webdav.js';
+import { LocalStorageManager } from './local-storage.js';
+import { QRScanner } from './qr-scanner.js';
+
+export class PopupManager {constructor() {
         this.currentTab = 'fill';
         this.authenticated = false;
         this.localAuthenticated = false;
@@ -784,10 +790,13 @@ messageStyles.textContent = `
 `;
 document.head.appendChild(messageStyles);
 
-// 初始化
-window.popupManager = new PopupManager();
+// ES6模块导出
+export const popupManager = new PopupManager();
 
 // 页面卸载时清理资源
 window.addEventListener('beforeunload', () => {
-    window.popupManager.cleanup();
+    popupManager.cleanup();
 });
+
+// 默认导出
+export default PopupManager;

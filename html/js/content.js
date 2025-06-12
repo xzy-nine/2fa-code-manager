@@ -1,5 +1,5 @@
 // 内容脚本 - 负责页面交互
-class ContentScript {
+export class ContentScript {
     constructor() {
         this.selectedInput = null;
         this.init();
@@ -475,3 +475,12 @@ if (document.readyState === 'loading') {
         contentScript.observePageChanges();
     }, 1000);
 }
+
+// ES6模块导出
+export { contentScript };
+
+// 默认导出
+export default {
+    ContentScript,
+    contentScript
+};

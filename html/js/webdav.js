@@ -1,5 +1,5 @@
 // WebDAV客户端模块
-class WebDAVClient {
+export class WebDAVClient {
     constructor(config = {}) {
         this.baseUrl = config.url || '';
         this.username = config.username || '';

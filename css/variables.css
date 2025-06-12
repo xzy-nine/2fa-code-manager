@@ -1,0 +1,190 @@
+/* CSS变量定义 - 设计系统的核心 */
+:root {
+    /* 字体系统 */
+    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif;
+    --font-size-xs: 0.75rem;    /* 12px */
+    --font-size-sm: 0.875rem;   /* 14px */
+    --font-size-base: 1rem;     /* 16px */
+    --font-size-lg: 1.125rem;   /* 18px */
+    --font-size-xl: 1.25rem;    /* 20px */
+    --font-size-2xl: 1.5rem;    /* 24px */
+    --font-size-3xl: 1.875rem;  /* 30px */
+    
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    
+    --line-height-tight: 1.25;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.75;
+
+    /* 颜色系统 */
+    --primary-color: #667eea;
+    --primary-hover: #5a67d8;
+    --primary-active: #4c51bf;
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    
+    --secondary-color: #64748b;
+    --secondary-hover: #475569;
+    --secondary-active: #334155;
+    
+    --success-color: #10b981;
+    --success-hover: #059669;
+    --success-light: #d1fae5;
+    
+    --error-color: #ef4444;
+    --error-hover: #dc2626;
+    --error-light: #fee2e2;
+    
+    --warning-color: #f59e0b;
+    --warning-hover: #d97706;
+    --warning-light: #fef3c7;
+    
+    --info-color: #3b82f6;
+    --info-hover: #2563eb;
+    --info-light: #dbeafe;
+    
+    /* 中性色系 */
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    
+    /* 背景色系 */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f1f5f9;
+    --bg-accent: #e2e8f0;
+    --bg-overlay: rgba(0, 0, 0, 0.5);
+    --bg-glass: rgba(255, 255, 255, 0.9);
+    
+    /* 文本颜色 */
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --text-placeholder: #94a3b8;
+    --text-inverse: #ffffff;
+    
+    /* 边框系统 */
+    --border-color: #e1e8ed;
+    --border-light: #f1f5f9;
+    --border-dark: #cbd5e1;
+    --border-focus: var(--primary-color);
+    --border-error: var(--error-color);
+    --border-success: var(--success-color);
+    
+    --border-width: 1px;
+    --border-width-thick: 2px;
+    
+    /* 圆角系统 */
+    --border-radius-sm: 4px;
+    --border-radius: 8px;
+    --border-radius-md: 12px;
+    --border-radius-lg: 16px;
+    --border-radius-xl: 24px;
+    --border-radius-full: 9999px;
+    
+    /* 间距系统 */
+    --spacing-xs: 0.25rem;    /* 4px */
+    --spacing-sm: 0.5rem;     /* 8px */
+    --spacing-md: 0.75rem;    /* 12px */
+    --spacing-base: 1rem;     /* 16px */
+    --spacing-lg: 1.5rem;     /* 24px */
+    --spacing-xl: 2rem;       /* 32px */
+    --spacing-2xl: 2.5rem;    /* 40px */
+    --spacing-3xl: 3rem;      /* 48px */
+    --spacing-4xl: 4rem;      /* 64px */
+    
+    /* 阴影系统 */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 15px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 6px 20px rgba(0, 0, 0, 0.15);
+    --shadow-xl: 0 10px 30px rgba(0, 0, 0, 0.2);
+    --shadow-2xl: 0 20px 40px rgba(0, 0, 0, 0.25);
+    
+    --shadow-primary: 0 4px 15px rgba(102, 126, 234, 0.3);
+    --shadow-success: 0 4px 15px rgba(16, 185, 129, 0.3);
+    --shadow-error: 0 4px 15px rgba(239, 68, 68, 0.3);
+    --shadow-warning: 0 4px 15px rgba(245, 158, 11, 0.3);
+    
+    /* 动画系统 */
+    --transition-fast: all 0.15s ease;
+    --transition: all 0.3s ease;
+    --transition-slow: all 0.5s ease;
+    
+    --easing-ease-in: cubic-bezier(0.4, 0, 1, 1);
+    --easing-ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --easing-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+    --easing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    
+    /* Z-index系统 */
+    --z-dropdown: 1000;
+    --z-sticky: 1020;
+    --z-fixed: 1030;
+    --z-modal-backdrop: 1040;
+    --z-modal: 1050;
+    --z-popover: 1060;
+    --z-tooltip: 1070;
+    --z-toast: 1080;
+    
+    /* 尺寸系统 */
+    --size-xs: 1.5rem;    /* 24px */
+    --size-sm: 2rem;      /* 32px */
+    --size-md: 2.5rem;    /* 40px */
+    --size-lg: 3rem;      /* 48px */
+    --size-xl: 4rem;      /* 64px */
+    --size-2xl: 5rem;     /* 80px */
+    
+    /* 断点系统 */
+    --breakpoint-sm: 640px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 1024px;
+    --breakpoint-xl: 1280px;
+    --breakpoint-2xl: 1536px;
+}
+
+/* 暗色主题变量 */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-primary: #1e293b;
+        --bg-secondary: #334155;
+        --bg-tertiary: #475569;
+        --bg-accent: #64748b;
+        
+        --text-primary: #f8fafc;
+        --text-secondary: #e2e8f0;
+        --text-muted: #cbd5e1;
+        --text-placeholder: #94a3b8;
+        
+        --border-color: #475569;
+        --border-light: #64748b;
+        --border-dark: #334155;
+        
+        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 15px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 6px 20px rgba(0, 0, 0, 0.5);
+    }
+}
+
+/* 自定义属性工具类 */
+.theme-light {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+}
+
+.theme-dark {
+    --bg-primary: #1e293b;
+    --bg-secondary: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #e2e8f0;
+}

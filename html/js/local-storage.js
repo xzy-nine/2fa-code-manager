@@ -1,5 +1,5 @@
 // 本地存储管理模块 - 复用云端加密逻辑
-class LocalStorageManager {
+export class LocalStorageManager {
     constructor() {
         this.cryptoManager = new CryptoManager();
         this.storageKey = 'encrypted_local_configs';

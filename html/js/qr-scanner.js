@@ -1,5 +1,5 @@
 // 二维码扫描模块
-class QRScanner {
+export class QRScanner {
     constructor() {
         this.video = null;
         this.canvas = null;

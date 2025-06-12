@@ -1,4 +1,12 @@
-/* 共享基础样式 */
+/* 共享基础样式 - CSS模块化管理系统 */
+
+/* 导入其他CSS模块 */
+@import url('./variables.css');
+@import url('./reset.css');
+@import url('./components.css');
+@import url('./utilities.css');
+
+/* 基础重置样式 */
 * {
     margin: 0;
     padding: 0;

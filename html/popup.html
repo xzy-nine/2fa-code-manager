@@ -176,13 +176,15 @@
             </div>
             <div class="modal-body" id="modalBody">
                 <!-- 动态内容 -->
-            </div>
-        </div>
-    </div>    <script src="js/crypto.js"></script>
-    <script src="js/totp.js"></script>
-    <script src="js/webdav.js"></script>
-    <script src="js/local-storage.js"></script>
-    <script src="js/qr-scanner.js"></script>
-    <script src="js/popup.js"></script>
+            </div>        </div>
+    </div>
+
+    <!-- ES6模块化导入 -->
+    <script type="module">
+        import { PopupManager } from './js/index.js';
+        
+        // 初始化弹出页面管理器
+        const popupManager = new PopupManager();
+    </script>
 </body>
 </html>

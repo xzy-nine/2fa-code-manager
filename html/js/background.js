@@ -1,9 +1,10 @@
-// 导入依赖
+// 背景脚本 - 处理扩展的后台逻辑
+// 注意：background脚本在manifest v2中不支持ES6模块，需要使用importScripts
 importScripts('./totp.js');
 importScripts('./crypto.js');
 importScripts('./local-storage.js');
 
-// 背景脚本 - 处理扩展的后台逻辑
+// 背景服务类
 class BackgroundService {
     constructor() {
         this.init();
@@ -562,8 +563,7 @@ class BackgroundService {
             }
         } catch (error) {
             console.error('自动迁移检查失败:', error);
-        }
-    }
+        }    }
 }
 
 // 初始化背景服务
@@ -571,3 +571,18 @@ const backgroundService = new BackgroundService();
 
 // 启动定期任务
 backgroundService.setupPeriodicTasks();
+
+// 为ES6模块系统导出（虽然background脚本主要使用importScripts）
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = BackgroundService;
+}
+
+// 默认导出
+const backgroundScript = {
+    BackgroundService,
+    backgroundService
+};
+
+if (typeof window !== 'undefined') {
+    window.backgroundScript = backgroundScript;
+}
