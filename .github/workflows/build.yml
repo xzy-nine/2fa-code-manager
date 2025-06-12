@@ -1,0 +1,97 @@
+name: Build and Package Extension
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ created ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout代码
+      uses: actions/checkout@v4
+      
+    - name: 设置Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: 安装依赖
+      run: npm ci
+      
+    - name: 验证manifest
+      run: npm run validate
+      
+    - name: 运行测试
+      run: npm test
+      
+    - name: 构建扩展
+      run: npm run build
+      
+    - name: 打包扩展
+      run: npm run package
+      
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-package
+        path: dist/
+        retention-days: 30
+        
+    - name: 上传扩展包
+      if: github.event_name == 'release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-release
+        path: '*.zip'
+        retention-days: 90
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout代码
+      uses: actions/checkout@v4
+      
+    - name: 设置Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: 安装依赖
+      run: npm ci
+      
+    - name: 代码检查
+      run: npm run lint
+      
+    - name: 格式化检查
+      run: npm run format:check
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout代码
+      uses: actions/checkout@v4
+      
+    - name: 设置Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: 安装依赖
+      run: npm ci
+      
+    - name: 安全扫描
+      run: npm audit --audit-level moderate
+      
+    - name: 依赖检查
+      run: npm run security:check

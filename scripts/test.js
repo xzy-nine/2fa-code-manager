@@ -4,7 +4,9 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('🧪 开始运行测试...\n');
+if (process.env.CI || process.env.GITHUB_ACTIONS) {
+    console.log('Running tests...\n');
+}
 
 // 测试配置
 const tests = [
@@ -29,24 +31,30 @@ const tests = [
 // 运行所有测试
 async function runTests() {
     let passed = 0;
-    let failed = 0;
-
-    for (const test of tests) {
+    let failed = 0;    for (const test of tests) {
         try {
-            console.log(`🔍 运行测试: ${test.name}`);
+            if (process.env.CI || process.env.GITHUB_ACTIONS) {
+                console.log(`Running test: ${test.name}`);
+            }
             await test.test();
-            console.log(`✅ ${test.name} - 通过\n`);
+            if (process.env.CI || process.env.GITHUB_ACTIONS) {
+                console.log(`✅ ${test.name} - passed\n`);
+            }
             passed++;
         } catch (error) {
-            console.error(`❌ ${test.name} - 失败: ${error.message}\n`);
+            if (process.env.CI || process.env.GITHUB_ACTIONS) {
+                console.error(`❌ ${test.name} - failed: ${error.message}\n`);
+            }
             failed++;
         }
     }
 
-    console.log('📊 测试结果:');
-    console.log(`✅ 通过: ${passed}`);
-    console.log(`❌ 失败: ${failed}`);
-    console.log(`📈 总体: ${passed}/${passed + failed}`);
+    if (process.env.CI || process.env.GITHUB_ACTIONS) {
+        console.log('Test Results:');
+        console.log(`✅ Passed: ${passed}`);
+        console.log(`❌ Failed: ${failed}`);
+        console.log(`📈 Total: ${passed}/${passed + failed}`);
+    }
 
     if (failed > 0) {
         process.exit(1);
@@ -172,6 +180,8 @@ function testFileStructure() {
 
 // 运行测试
 runTests().catch(error => {
-    console.error('测试运行失败:', error);
+    if (process.env.CI || process.env.GITHUB_ACTIONS) {
+        console.error('Test execution failed:', error);
+    }
     process.exit(1);
 });

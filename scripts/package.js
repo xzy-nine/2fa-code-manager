@@ -7,8 +7,6 @@ const { execSync } = require('child_process');
 
 const packageInfo = require('../package.json');
 
-console.log('📦 开始打包扩展...\n');
-
 // 创建打包目录
 const distDir = path.join(__dirname, '..', 'dist');
 if (!fs.existsSync(distDir)) {
@@ -26,15 +24,22 @@ const filesToPackage = [
 
 // 需要排除的文件
 const excludeFiles = [
-    'test-page.html',
     'package.json',
     'package-lock.json',
     'README.md',
+    'CHANGELOG.md',
+    'DEVELOPMENT.md',
+    'INSTALL.md',
+    'PROJECT-SUMMARY.md',
+    'WORKFLOW.md',
     'scripts/',
     'node_modules/',
     '.git/',
+    '.github/',
     '.gitignore',
-    'dist/'
+    'dist/',
+    'build-manifest.json',
+    '*.zip'
 ];
 
 function copyRecursive(src, dest) {
@@ -57,7 +62,6 @@ function copyRecursive(src, dest) {
 }
 
 function cleanDist() {
-    console.log('🧹 清理打包目录...');
     if (fs.existsSync(distDir)) {
         fs.rmSync(distDir, { recursive: true });
     }
@@ -65,8 +69,6 @@ function cleanDist() {
 }
 
 function copyFiles() {
-    console.log('📂 复制文件...');
-    
     const baseDir = path.join(__dirname, '..');
     
     for (const item of filesToPackage) {
@@ -74,17 +76,12 @@ function copyFiles() {
         const destPath = path.join(distDir, item);
         
         if (fs.existsSync(srcPath)) {
-            console.log(`  复制: ${item}`);
             copyRecursive(srcPath, destPath);
-        } else {
-            console.warn(`  ⚠️  文件不存在: ${item}`);
         }
     }
 }
 
 function validatePackage() {
-    console.log('✅ 验证打包结果...');
-    
     // 检查必需文件
     const requiredFiles = [
         'manifest.json',
@@ -108,14 +105,9 @@ function validatePackage() {
     if (!manifest.name || !manifest.version) {
         throw new Error('manifest.json 缺少必需字段');
     }
-    
-    console.log(`  ✅ 扩展名称: ${manifest.name}`);
-    console.log(`  ✅ 版本: ${manifest.version}`);
 }
 
 function generateZip() {
-    console.log('🗜️  生成ZIP文件...');
-    
     const zipName = `${packageInfo.name}-v${packageInfo.version}.zip`;
     const zipPath = path.join(path.dirname(distDir), zipName);
     
@@ -124,22 +116,13 @@ function generateZip() {
         const command = `Compress-Archive -Path "${distDir}\\*" -DestinationPath "${zipPath}" -Force`;
         execSync(command, { shell: 'powershell.exe' });
         
-        const stats = fs.statSync(zipPath);
-        const fileSize = (stats.size / 1024).toFixed(2);
-        
-        console.log(`  ✅ ZIP文件已生成: ${zipName}`);
-        console.log(`  📏 文件大小: ${fileSize} KB`);
-        
         return zipPath;
     } catch (error) {
-        console.error('❌ 生成ZIP文件失败:', error.message);
-        throw error;
+        throw new Error(`生成ZIP文件失败: ${error.message}`);
     }
 }
 
 function generateManifest() {
-    console.log('📋 生成发布清单...');
-    
     const manifest = {
         name: packageInfo.name,
         version: packageInfo.version,
@@ -169,14 +152,10 @@ function generateManifest() {
             }
         });
     }
-    
-    collectFiles(distDir);
+      collectFiles(distDir);
     
     const manifestPath = path.join(path.dirname(distDir), 'build-manifest.json');
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-    
-    console.log(`  ✅ 发布清单已生成: build-manifest.json`);
-    console.log(`  📊 包含文件: ${manifest.files.length} 个`);
 }
 
 async function main() {
@@ -187,12 +166,17 @@ async function main() {
         const zipPath = generateZip();
         generateManifest();
         
-        console.log('\n🎉 打包完成！');
-        console.log('📁 输出目录:', distDir);
-        console.log('📦 ZIP文件:', path.basename(zipPath));
+        // 只在CI/CD环境中输出结果信息
+        if (process.env.CI || process.env.GITHUB_ACTIONS) {
+            console.log('Package completed successfully');
+            console.log(`Output directory: ${distDir}`);
+            console.log(`ZIP file: ${path.basename(zipPath)}`);
+        }
         
     } catch (error) {
-        console.error('\n❌ 打包失败:', error.message);
+        if (process.env.CI || process.env.GITHUB_ACTIONS) {
+            console.error('Package failed:', error.message);
+        }
         process.exit(1);
     }
 }

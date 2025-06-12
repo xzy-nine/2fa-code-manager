@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+    - name: Checkout代码
+      uses: actions/checkout@v4
+      
+    - name: 设置Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: 安装依赖
+      run: npm ci
+      
+    - name: 验证和测试
+      run: |
+        npm run validate
+        npm test
+        
+    - name: 构建扩展
+      run: npm run build
+      
+    - name: 打包扩展
+      run: npm run package
+      
+    - name: 创建发布说明
+      id: release_notes
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        
+        # 从CHANGELOG.md提取发布说明
+        if [ -f CHANGELOG.md ]; then
+          sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '$ d' > release_notes.txt
+        else
+          echo "🚀 版本 $VERSION 发布" > release_notes.txt
+          echo "" >> release_notes.txt
+          echo "### 更新内容" >> release_notes.txt
+          echo "- 请查看代码提交记录了解详细更新内容" >> release_notes.txt
+        fi
+        
+    - name: 创建GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: release_notes.txt
+        files: |
+          *.zip
+          dist/*
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 通知发布完成
+      run: |
+        echo "🎉 发布完成: ${{ steps.release_notes.outputs.VERSION }}"
+        echo "📦 下载地址: https://github.com/${{ github.repository }}/releases/tag/${{ steps.release_notes.outputs.VERSION }}"
