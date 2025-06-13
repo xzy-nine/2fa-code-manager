@@ -189,8 +189,8 @@ jobs:
             --event-name "workflow_call" \
             --repo "${{ github.repository }}" \
             --github-token "${{ secrets.PAT }}" \
-            --deepseek-api-key "${{ secrets.DEEPSEEK_API_KEY }}" \
-          else
+            --deepseek-api-key "${{ secrets.DEEPSEEK_API_KEY }}"
+        else
           # 手动触发模式
           echo "📝 执行模式: 手动触发 (workflow_dispatch)"
           echo "🎯 目标参数: ${{ inputs.target }}"
