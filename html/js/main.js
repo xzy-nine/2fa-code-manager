@@ -1,14 +1,6 @@
 // 主入口文件 - 统一管理所有模块（全局变量版本）
 // 避免ES6模块，使用全局变量系统
-
-// 获取全局作用域
-const GlobalScope = (() => {
-    if (typeof globalThis !== 'undefined') return globalThis;
-    if (typeof window !== 'undefined') return window;
-    if (typeof self !== 'undefined') return self;
-    if (typeof global !== 'undefined') return global;
-    throw new Error('无法确定全局作用域');
-})();
+// GlobalScope已在crypto.js中定义
 
 // 版本信息
 const VERSION = '2.0.0';

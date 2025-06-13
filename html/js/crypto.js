@@ -1,3 +1,12 @@
+// 全局作用域管理 - 在第一个加载的模块中定义
+const GlobalScope = (() => {
+    if (typeof globalThis !== 'undefined') return globalThis;
+    if (typeof window !== 'undefined') return window;
+    if (typeof self !== 'undefined') return self;
+    if (typeof global !== 'undefined') return global;
+    throw new Error('无法确定全局作用域');
+})();
+
 // 加密解密模块
 class CryptoManager {
     constructor() {
@@ -193,13 +202,5 @@ class CryptoManager {
 
 // 全局变量导出 - 支持多种环境
 (() => {
-    const GlobalScope = (() => {
-        if (typeof globalThis !== 'undefined') return globalThis;
-        if (typeof window !== 'undefined') return window;
-        if (typeof self !== 'undefined') return self;
-        if (typeof global !== 'undefined') return global;
-        throw new Error('无法确定全局作用域');
-    })();
-    
     GlobalScope.CryptoManager = CryptoManager;
 })();

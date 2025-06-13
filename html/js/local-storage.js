@@ -2,14 +2,6 @@
 class LocalStorageManager {
     constructor() {
         // 使用全局变量获取CryptoManager实例
-        const GlobalScope = (() => {
-            if (typeof globalThis !== 'undefined') return globalThis;
-            if (typeof window !== 'undefined') return window;
-            if (typeof self !== 'undefined') return self;
-            if (typeof global !== 'undefined') return global;
-            throw new Error('无法确定全局作用域');
-        })();
-        
         this.cryptoManager = new GlobalScope.CryptoManager();
         this.storageKey = 'encrypted_local_configs';
         this.configListKey = 'local_config_list';
@@ -378,13 +370,5 @@ class LocalStorageManager {
 
 // 全局变量导出 - 支持多种环境
 (() => {
-    const GlobalScope = (() => {
-        if (typeof globalThis !== 'undefined') return globalThis;
-        if (typeof window !== 'undefined') return window;
-        if (typeof self !== 'undefined') return self;
-        if (typeof global !== 'undefined') return global;
-        throw new Error('无法确定全局作用域');
-    })();
-    
     GlobalScope.LocalStorageManager = LocalStorageManager;
 })();

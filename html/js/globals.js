@@ -1,14 +1,6 @@
 // 全局变量管理文件
 // 用于Service Worker环境统一管理全局变量
-
-// 检测环境并创建统一的全局对象访问方式
-const GlobalScope = (() => {
-    if (typeof globalThis !== 'undefined') return globalThis;
-    if (typeof window !== 'undefined') return window;
-    if (typeof self !== 'undefined') return self;
-    if (typeof global !== 'undefined') return global;
-    throw new Error('无法确定全局作用域');
-})();
+// GlobalScope已在crypto.js中定义
 
 // Service Worker专用的模块访问器
 const Modules = {

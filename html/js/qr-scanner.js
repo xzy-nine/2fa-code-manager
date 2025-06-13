@@ -306,13 +306,5 @@ class QRScanner {
 
 // 全局变量导出 - 支持多种环境
 (() => {
-    const GlobalScope = (() => {
-        if (typeof globalThis !== 'undefined') return globalThis;
-        if (typeof window !== 'undefined') return window;
-        if (typeof self !== 'undefined') return self;
-        if (typeof global !== 'undefined') return global;
-        throw new Error('无法确定全局作用域');
-    })();
-    
     GlobalScope.QRScanner = QRScanner;
 })();
