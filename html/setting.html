@@ -5,129 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">    <title>2FA验证码管家 - 设置</title>
     <link rel="stylesheet" href="../css/settings.css">
 </head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>设置</h1>
-            <button id="backButton" class="back-button">返回</button>
-        </header>
-        
-        <main class="settings-content">
-            <!-- WebDAV设置 -->
-            <section class="settings-section">
-                <h2>WebDAV同步设置</h2>
-                <div class="form-group">
-                    <label for="webdavUrl">服务器地址</label>
-                    <input type="url" id="webdavUrl" placeholder="https://your-server.com/webdav">
-                </div>
-                <div class="form-group">
-                    <label for="webdavUsername">用户名</label>
-                    <input type="text" id="webdavUsername" placeholder="用户名">
-                </div>
-                <div class="form-group">
-                    <label for="webdavPassword">密码</label>
-                    <input type="password" id="webdavPassword" placeholder="密码">
-                </div>
-                <button id="testWebdav" class="btn btn-secondary">测试连接</button>
-                <button id="saveWebdav" class="btn btn-primary">保存WebDAV设置</button>
-            </section>
-
-            <!-- 加密设置 -->
-            <section class="settings-section">
-                <h2>加密设置</h2>
-                <div class="form-group">
-                    <label for="encryptionKey">自定义加密密钥</label>
-                    <input type="password" id="encryptionKey" placeholder="留空使用简单加密">
-                    <small>输入强密码以提供更高安全性</small>
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="enableBiometric">
-                        启用生物识别验证
-                    </label>
-                    <small>使用Windows Hello等进行身份验证</small>
-                </div>
-                <button id="saveEncryption" class="btn btn-primary">保存加密设置</button>
-            </section>            <!-- 本地存储设置 -->
-            <section class="settings-section">
-                <h2>本地存储设置</h2>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="allowLocalStorage">
-                        启用加密本地存储
-                    </label>
-                    <small>使用与云端相同的加密算法保护本地配置，支持离线使用</small>
-                </div>
-                <button id="saveLocalStorage" class="btn btn-primary">保存本地存储设置</button>
-            </section>
-
-            <!-- 配置管理 -->
-            <section class="settings-section">
-                <h2>配置管理</h2>                <div class="config-actions">
-                    <button id="addConfig" class="btn btn-secondary">手动添加配置</button>
-                    <button id="exportConfigs" class="btn btn-secondary">导出配置</button>
-                    <button id="importConfigs" class="btn btn-secondary">导入配置</button>
-                    <button id="backupToCloud" class="btn btn-primary">备份到云端</button>
-                    <button id="restoreFromCloud" class="btn btn-info">从云端恢复</button>
-                    <button id="validateConfigs" class="btn btn-warning">验证配置</button>
-                </div>
-                <div class="config-list" id="configList">
-                    <!-- 配置列表将在这里动态生成 -->
-                </div>
-            </section>
-
-            <!-- 关于信息 -->
-            <section class="settings-section">
-                <h2>关于</h2>
-                <div class="about-info">
-                    <p><strong>2FA验证码管家</strong></p>
-                    <p>版本: 1.0.0</p>
-                    <p>一个功能强大的2FA验证码管理浏览器扩展</p>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- 添加配置模态框 -->
-    <div id="addConfigModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>添加2FA配置</h3>
-                <span class="close">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="configName">配置名称</label>
-                    <input type="text" id="configName" placeholder="例如：GitHub">
-                </div>
-                <div class="form-group">
-                    <label for="configSecret">密钥 (Secret)</label>
-                    <input type="text" id="configSecret" placeholder="Base32编码的密钥">
-                </div>
-                <div class="form-group">
-                    <label for="configIssuer">发行方</label>
-                    <input type="text" id="configIssuer" placeholder="例如：GitHub">
-                </div>
-                <div class="form-group">
-                    <label for="configAccount">账户</label>
-                    <input type="text" id="configAccount" placeholder="例如：username@example.com">
-                </div>
-                <div class="form-group">
-                    <label for="configDigits">验证码位数</label>
-                    <select id="configDigits">
-                        <option value="6">6位</option>
-                        <option value="8">8位</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="configPeriod">更新周期(秒)</label>
-                    <input type="number" id="configPeriod" value="30" min="15" max="300">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="saveConfig" class="btn btn-primary">保存</button>
-                <button id="cancelConfig" class="btn btn-secondary">取消</button>            </div>        </div>
+<body>    <!-- 主容器 - 将由JS动态生成内容 -->
+    <div id="app" class="container">
+        <!-- 页面内容将通过JavaScript动态加载 -->
     </div>    <!-- 按依赖顺序加载模块 -->
+    <script src="./js/globals.js"></script>
     <script src="./js/crypto.js"></script>
     <script src="./js/lib/otpauth.umd.min.js"></script>
     <script src="./js/totp.js"></script>
@@ -136,5 +18,7 @@
     <script src="./js/qr-scanner.js"></script>
     <script src="./js/main.js"></script>
     <script src="./js/setting.js"></script>
+    <!-- 开发测试脚本 - 生产环境中可以移除 -->
+    <script src="./js/test-settings.js"></script>
 </body>
 </html>

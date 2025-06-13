@@ -28,9 +28,176 @@ class SettingManager {
     }
 
     initApp() {
+        this.renderPage();
         this.initElements();
         this.initEventListeners();
         this.loadSettings();
+    }
+
+    // 动态渲染页面内容
+    renderPage() {
+        const app = document.getElementById('app');
+        if (!app) return;
+
+        app.innerHTML = `
+            <header class="header">
+                <h1>设置</h1>
+                <button id="backButton" class="back-button">返回</button>
+            </header>
+            
+            <main class="settings-content">
+                ${this.renderWebDAVSection()}
+                ${this.renderEncryptionSection()}
+                ${this.renderLocalStorageSection()}
+                ${this.renderConfigManagementSection()}
+                ${this.renderAboutSection()}
+            </main>
+            
+            ${this.renderAddConfigModal()}
+        `;
+    }
+
+    // 渲染WebDAV设置区域
+    renderWebDAVSection() {
+        return `
+            <section class="settings-section">
+                <h2>WebDAV同步设置</h2>
+                <div class="form-group">
+                    <label for="webdavUrl">服务器地址</label>
+                    <input type="url" id="webdavUrl" placeholder="https://your-server.com/webdav">
+                </div>
+                <div class="form-group">
+                    <label for="webdavUsername">用户名</label>
+                    <input type="text" id="webdavUsername" placeholder="用户名">
+                </div>
+                <div class="form-group">
+                    <label for="webdavPassword">密码</label>
+                    <input type="password" id="webdavPassword" placeholder="密码">
+                </div>
+                <button id="testWebdav" class="btn btn-secondary">测试连接</button>
+                <button id="saveWebdav" class="btn btn-primary">保存WebDAV设置</button>
+            </section>
+        `;
+    }
+
+    // 渲染加密设置区域
+    renderEncryptionSection() {
+        return `
+            <section class="settings-section">
+                <h2>加密设置</h2>
+                <div class="form-group">
+                    <label for="encryptionKey">自定义加密密钥</label>
+                    <input type="password" id="encryptionKey" placeholder="留空使用简单加密">
+                    <small>输入强密码以提供更高安全性</small>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="enableBiometric">
+                        启用生物识别验证
+                    </label>
+                    <small>使用Windows Hello等进行身份验证</small>
+                </div>
+                <button id="saveEncryption" class="btn btn-primary">保存加密设置</button>
+            </section>
+        `;
+    }
+
+    // 渲染本地存储设置区域
+    renderLocalStorageSection() {
+        return `
+            <section class="settings-section">
+                <h2>本地存储设置</h2>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="allowLocalStorage">
+                        启用加密本地存储
+                    </label>
+                    <small>使用与云端相同的加密算法保护本地配置，支持离线使用</small>
+                </div>
+                <button id="saveLocalStorage" class="btn btn-primary">保存本地存储设置</button>
+            </section>
+        `;
+    }
+
+    // 渲染配置管理区域
+    renderConfigManagementSection() {
+        return `
+            <section class="settings-section">
+                <h2>配置管理</h2>
+                <div class="config-actions">
+                    <button id="addConfig" class="btn btn-secondary">手动添加配置</button>
+                    <button id="exportConfigs" class="btn btn-secondary">导出配置</button>
+                    <button id="importConfigs" class="btn btn-secondary">导入配置</button>
+                    <button id="backupToCloud" class="btn btn-primary">备份到云端</button>
+                    <button id="restoreFromCloud" class="btn btn-info">从云端恢复</button>
+                    <button id="validateConfigs" class="btn btn-warning">验证配置</button>
+                </div>
+                <div class="config-list" id="configList">
+                    <!-- 配置列表将在这里动态生成 -->
+                </div>
+            </section>
+        `;
+    }
+
+    // 渲染关于信息区域
+    renderAboutSection() {
+        return `
+            <section class="settings-section">
+                <h2>关于</h2>
+                <div class="about-info">
+                    <p><strong>2FA验证码管家</strong></p>
+                    <p>版本: 1.0.0</p>
+                    <p>一个功能强大的2FA验证码管理浏览器扩展</p>
+                </div>
+            </section>
+        `;
+    }
+
+    // 渲染添加配置模态框
+    renderAddConfigModal() {
+        return `
+            <div id="addConfigModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>添加2FA配置</h3>
+                        <span class="close">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="configName">配置名称</label>
+                            <input type="text" id="configName" placeholder="例如：GitHub">
+                        </div>
+                        <div class="form-group">
+                            <label for="configSecret">密钥 (Secret)</label>
+                            <input type="text" id="configSecret" placeholder="Base32编码的密钥">
+                        </div>
+                        <div class="form-group">
+                            <label for="configIssuer">发行方</label>
+                            <input type="text" id="configIssuer" placeholder="例如：GitHub">
+                        </div>
+                        <div class="form-group">
+                            <label for="configAccount">账户</label>
+                            <input type="text" id="configAccount" placeholder="例如：username@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="configDigits">验证码位数</label>
+                            <select id="configDigits">
+                                <option value="6">6位</option>
+                                <option value="8">8位</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="configPeriod">更新周期(秒)</label>
+                            <input type="number" id="configPeriod" value="30" min="15" max="300">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="saveConfig" class="btn btn-primary">保存</button>
+                        <button id="cancelConfig" class="btn btn-secondary">取消</button>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     initElements() {
@@ -150,17 +317,13 @@ class SettingManager {
         } catch (error) {
             this.showMessage('保存失败: ' + error.message, 'error');
         }
-    }
-
-    async saveLocalStorageSettings() {
-        const useEncryptedStorage = document.getElementById('useEncryptedStorage')?.checked;
-        const autoBackup = document.getElementById('autoBackup')?.checked;
+    }    async saveLocalStorageSettings() {
+        const allowLocalStorage = document.getElementById('allowLocalStorage')?.checked;
 
         try {
             await chrome.storage.local.set({
                 localStorageConfig: {
-                    useEncryptedStorage: useEncryptedStorage,
-                    autoBackup: autoBackup
+                    useEncryptedStorage: allowLocalStorage || false
                 }
             });
             this.showMessage('本地存储设置已保存', 'success');
@@ -183,6 +346,9 @@ class SettingManager {
         const name = document.getElementById('configName')?.value;
         const secret = document.getElementById('configSecret')?.value;
         const issuer = document.getElementById('configIssuer')?.value;
+        const account = document.getElementById('configAccount')?.value;
+        const digits = document.getElementById('configDigits')?.value;
+        const period = document.getElementById('configPeriod')?.value;
 
         if (!name || !secret) {
             this.showMessage('请填写配置名称和密钥', 'error');
@@ -194,6 +360,9 @@ class SettingManager {
                 name: name,
                 secret: secret,
                 issuer: issuer || '',
+                account: account || '',
+                digits: parseInt(digits) || 6,
+                period: parseInt(period) || 30,
                 type: 'totp'
             };
 
@@ -207,11 +376,22 @@ class SettingManager {
                 
                 this.hideAddConfigModal();
                 this.clearConfigForm();
+                this.resetSaveButton();
+                await this.updateConfigList();
             } else {
                 this.showMessage('添加失败: ' + result.message, 'error');
             }
         } catch (error) {
             this.showMessage('添加失败: ' + error.message, 'error');
+        }
+    }
+
+    // 重置保存按钮状态
+    resetSaveButton() {
+        const saveButton = document.getElementById('saveConfig');
+        if (saveButton) {
+            saveButton.textContent = '保存';
+            saveButton.onclick = () => this.saveNewConfig();
         }
     }
 
@@ -231,18 +411,20 @@ class SettingManager {
             console.warn('云端备份出错:', error);
             // 备份失败不影响主要功能
         }
-    }
-
-    clearConfigForm() {
-        if (document.getElementById('configName')) {
-            document.getElementById('configName').value = '';
-        }
-        if (document.getElementById('configSecret')) {
-            document.getElementById('configSecret').value = '';
-        }
-        if (document.getElementById('configIssuer')) {
-            document.getElementById('configIssuer').value = '';
-        }
+    }    clearConfigForm() {
+        const fields = ['configName', 'configSecret', 'configIssuer', 'configAccount', 'configDigits', 'configPeriod'];
+        fields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                if (field.type === 'checkbox') {
+                    field.checked = false;
+                } else if (field.tagName === 'SELECT') {
+                    field.selectedIndex = 0;
+                } else {
+                    field.value = fieldId === 'configDigits' ? '6' : (fieldId === 'configPeriod' ? '30' : '');
+                }
+            }
+        });
     }
 
     async exportConfigs() {
@@ -435,9 +617,7 @@ class SettingManager {
         } catch (error) {
             this.showMessage('验证失败: ' + error.message, 'error');
         }
-    }
-
-    async loadSettings() {
+    }    async loadSettings() {
         try {
             const result = await chrome.storage.local.get(['webdavConfig', 'encryptionConfig', 'localStorageConfig']);
             
@@ -452,6 +632,11 @@ class SettingManager {
                 }
                 if (document.getElementById('webdavPassword')) {
                     document.getElementById('webdavPassword').value = config.password || '';
+                }
+                
+                // 如果有WebDAV配置，初始化WebDAV客户端
+                if (config.url && config.username && config.password) {
+                    this.webdavClient.setCredentials(config.url, config.username, config.password);
                 }
             }
 
@@ -469,62 +654,197 @@ class SettingManager {
             // 加载本地存储设置
             if (result.localStorageConfig) {
                 const config = result.localStorageConfig;
-                if (document.getElementById('useEncryptedStorage')) {
-                    document.getElementById('useEncryptedStorage').checked = config.useEncryptedStorage || false;
+                if (document.getElementById('allowLocalStorage')) {
+                    document.getElementById('allowLocalStorage').checked = config.useEncryptedStorage || false;
                 }
-                if (document.getElementById('autoBackup')) {
-                    document.getElementById('autoBackup').checked = config.autoBackup || false;
-                }
-            }        } catch (error) {
+            }
+
+            // 加载并显示配置列表
+            await this.updateConfigList();
+        } catch (error) {
             console.error('加载设置失败:', error);
+            this.showMessage('加载设置失败: ' + error.message, 'error');
         }
     }
 
-    showMessage(message, type = 'info', duration = 3000) {
-        // 创建并显示消息提示
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${type}`;
-        messageDiv.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 24px;
-            border-radius: 4px;
-            color: white;
-            font-weight: 500;
-            z-index: 10000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            transition: all 0.3s ease;
-        `;
+    // 动态更新配置列表
+    async updateConfigList() {
+        const configListElement = document.getElementById('configList');
+        if (!configListElement) return;
 
-        switch (type) {
-            case 'success':
-                messageDiv.style.backgroundColor = '#10b981';
-                break;
-            case 'error':
-                messageDiv.style.backgroundColor = '#ef4444';
-                break;
-            case 'warning':
-                messageDiv.style.backgroundColor = '#f59e0b';
-                break;
-            default:
-                messageDiv.style.backgroundColor = '#3b82f6';
+        try {
+            const configs = await this.localStorageManager.getAllLocalConfigs();
+            configListElement.innerHTML = this.renderConfigList(configs);
+            this.attachConfigListEvents();
+        } catch (error) {
+            console.error('更新配置列表失败:', error);
+            configListElement.innerHTML = '<p class="error-message">加载配置列表失败</p>';
+        }
+    }
+
+    // 渲染配置列表
+    renderConfigList(configs) {
+        if (!configs || configs.length === 0) {
+            return '<p class="empty-message">暂无配置</p>';
         }
 
-        messageDiv.textContent = message;
-        document.body.appendChild(messageDiv);
+        return configs.map((config, index) => `
+            <div class="config-item" data-index="${index}">
+                <div class="config-info">
+                    <h4>${this.escapeHtml(config.name || '未知配置')}</h4>
+                    <p class="config-issuer">${this.escapeHtml(config.issuer || '')}</p>
+                    <p class="config-account">${this.escapeHtml(config.account || '')}</p>
+                </div>
+                <div class="config-actions">
+                    <button class="btn btn-sm btn-secondary edit-config" data-index="${index}">编辑</button>
+                    <button class="btn btn-sm btn-danger delete-config" data-index="${index}">删除</button>
+                </div>
+            </div>
+        `).join('');
+    }
 
-        // 根据指定时间后自动移除
-        setTimeout(() => {
-            if (messageDiv.parentNode) {
-                messageDiv.style.opacity = '0';
-                setTimeout(() => {
-                    if (messageDiv.parentNode) {
-                        messageDiv.parentNode.removeChild(messageDiv);
-                    }
-                }, 300);
+    // 为配置列表附加事件监听器
+    attachConfigListEvents() {
+        // 编辑配置
+        document.querySelectorAll('.edit-config').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const index = parseInt(e.target.getAttribute('data-index'));
+                this.editConfig(index);
+            });
+        });
+
+        // 删除配置
+        document.querySelectorAll('.delete-config').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const index = parseInt(e.target.getAttribute('data-index'));
+                this.deleteConfig(index);
+            });
+        });
+    }
+
+    // 编辑配置
+    async editConfig(index) {
+        try {
+            const configs = await this.localStorageManager.getAllLocalConfigs();
+            if (index >= 0 && index < configs.length) {
+                const config = configs[index];
+                this.showEditConfigModal(config, index);
             }
-        }, duration);}
+        } catch (error) {
+            this.showMessage('获取配置失败: ' + error.message, 'error');
+        }
+    }
+
+    // 删除配置
+    async deleteConfig(index) {
+        if (!confirm('确定要删除这个配置吗？')) {
+            return;
+        }
+
+        try {
+            const configs = await this.localStorageManager.getAllLocalConfigs();
+            if (index >= 0 && index < configs.length) {
+                const result = await this.localStorageManager.removeLocalConfig(configs[index].id);
+                if (result.success) {
+                    this.showMessage('配置已删除', 'success');
+                    this.updateConfigList();
+                } else {
+                    this.showMessage('删除失败: ' + result.message, 'error');
+                }
+            }
+        } catch (error) {
+            this.showMessage('删除失败: ' + error.message, 'error');
+        }
+    }
+
+    // 显示编辑配置模态框
+    showEditConfigModal(config, index) {
+        this.showAddConfigModal();
+        
+        // 预填充数据
+        if (document.getElementById('configName')) {
+            document.getElementById('configName').value = config.name || '';
+        }
+        if (document.getElementById('configSecret')) {
+            document.getElementById('configSecret').value = config.secret || '';
+        }
+        if (document.getElementById('configIssuer')) {
+            document.getElementById('configIssuer').value = config.issuer || '';
+        }
+        if (document.getElementById('configAccount')) {
+            document.getElementById('configAccount').value = config.account || '';
+        }
+        if (document.getElementById('configDigits')) {
+            document.getElementById('configDigits').value = config.digits || '6';
+        }
+        if (document.getElementById('configPeriod')) {
+            document.getElementById('configPeriod').value = config.period || '30';
+        }
+
+        // 修改保存按钮为更新模式
+        const saveButton = document.getElementById('saveConfig');
+        if (saveButton) {
+            saveButton.textContent = '更新';
+            saveButton.onclick = () => this.updateExistingConfig(index);
+        }
+    }
+
+    // 更新现有配置
+    async updateExistingConfig(index) {
+        const name = document.getElementById('configName')?.value;
+        const secret = document.getElementById('configSecret')?.value;
+        const issuer = document.getElementById('configIssuer')?.value;
+        const account = document.getElementById('configAccount')?.value;
+        const digits = document.getElementById('configDigits')?.value;
+        const period = document.getElementById('configPeriod')?.value;
+
+        if (!name || !secret) {
+            this.showMessage('请填写配置名称和密钥', 'error');
+            return;
+        }
+
+        try {
+            const configs = await this.localStorageManager.getAllLocalConfigs();
+            if (index >= 0 && index < configs.length) {
+                const updatedConfig = {
+                    ...configs[index],
+                    name: name,
+                    secret: secret,
+                    issuer: issuer || '',
+                    account: account || '',
+                    digits: parseInt(digits) || 6,
+                    period: parseInt(period) || 30,
+                    type: 'totp'
+                };
+
+                const result = await this.localStorageManager.updateLocalConfig(configs[index].id, updatedConfig);
+                if (result.success) {
+                    this.showMessage('配置已更新', 'success');
+                    this.hideAddConfigModal();
+                    this.clearConfigForm();
+                    this.updateConfigList();
+                    
+                    // 自动备份到云端
+                    this.backupToCloud(updatedConfig);
+                } else {
+                    this.showMessage('更新失败: ' + result.message, 'error');
+                }
+            }
+        } catch (error) {
+            this.showMessage('更新失败: ' + error.message, 'error');
+        }
+    }
+
+    // HTML转义函数
+    escapeHtml(unsafe) {
+        if (typeof unsafe !== 'string') return '';
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
 }
 
 // 全局变量导出（用于Service Worker环境）
