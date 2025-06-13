@@ -159,11 +159,12 @@ class PopupManager {constructor() {
             this.showMessage('正在验证身份...', 'info');
             
             const result = await this.performBiometricAuth();
-            
-            if (result.success) {
+              if (result.success) {
                 this.localAuthenticated = true;
                 this.showLocalCodes();
                 await this.loadLocalCodes();
+                // 添加诊断调用
+                await this.diagnoseLocalCodes();
                 this.showMessage('本地验证码已解锁！', 'success');
             } else {
                 this.showMessage('验证失败: ' + result.error, 'error');
@@ -496,19 +497,29 @@ class PopupManager {constructor() {
             element.addEventListener('click', () => {
                 navigator.clipboard.writeText(element.textContent);
                 this.showMessage('验证码已复制', 'success');
-            });
-        });
-    }    // 更新本地验证码显示
+            });        });
+    }
+
+    // 更新本地验证码显示
     async updateLocalCodesDisplay() {
         console.log('开始更新本地验证码显示，配置数量:', this.localCodes.length);
         
         for (const config of this.localCodes) {
             const element = document.querySelector(`[data-secret="${config.secret}"]`);
             console.log('处理配置:', config.name, '元素找到:', !!element);
+            console.log('配置详情:', JSON.stringify(config, null, 2));
             
             if (element) {
                 try {
                     console.log('开始生成TOTP，密钥:', config.secret?.substring(0, 8) + '...');
+                    
+                    // 验证密钥是否存在
+                    if (!config.secret) {
+                        console.error('配置密钥为空:', config.name);
+                        element.textContent = '密钥缺失';
+                        continue;
+                    }
+                    
                     const code = await this.totpGenerator.generateTOTP(config.secret);
                     console.log('生成的验证码:', code);
                     
@@ -521,7 +532,8 @@ class PopupManager {constructor() {
                     }
                 } catch (error) {
                     element.textContent = '------';
-                    console.error('生成验证码出错:', error, config.name);
+                    console.error('生成验证码出错:', error, '配置:', config.name);
+                    console.error('错误详情:', error.message, error.stack);
                 }
             }
         }
@@ -907,6 +919,67 @@ class PopupManager {constructor() {
         if (this.qrScanner) {
             this.qrScanner.stopScanning();
         }
+    }
+
+    // 诊断本地验证码问题
+    async diagnoseLocalCodes() {
+        console.log('=== 开始诊断本地验证码问题 ===');
+        
+        try {
+            // 1. 检查认证状态
+            console.log('1. 本地认证状态:', this.localAuthenticated);
+            
+            // 2. 检查本地存储
+            const rawStorage = localStorage.getItem('local_config_list');
+            console.log('2. 本地配置列表原始数据:', rawStorage);
+            
+            if (rawStorage) {
+                const configList = JSON.parse(rawStorage);
+                console.log('3. 解析后的配置列表:', configList);
+                
+                for (const item of configList) {
+                    console.log(`4. 检查配置 ${item.name} (ID: ${item.id})`);
+                    
+                    // 检查加密数据
+                    const encryptedData = localStorage.getItem(`encrypted_local_config_${item.id}`);
+                    console.log(`   加密数据存在:`, !!encryptedData);
+                    console.log(`   加密数据长度:`, encryptedData?.length || 0);
+                    
+                    // 尝试解密
+                    try {
+                        const result = await this.localStorageManager.getLocalConfig(item.id);
+                        console.log(`   解密结果:`, result.success);
+                        if (result.success) {
+                            console.log(`   配置名称:`, result.config.name);
+                            console.log(`   密钥存在:`, !!result.config.secret);
+                            console.log(`   密钥长度:`, result.config.secret?.length || 0);
+                            console.log(`   密钥前8位:`, result.config.secret?.substring(0, 8));
+                        } else {
+                            console.log(`   解密错误:`, result.message);
+                        }
+                    } catch (error) {
+                        console.error(`   解密异常:`, error);
+                    }
+                }
+            } else {
+                console.log('3. 没有找到本地配置列表');
+            }
+            
+            // 5. 检查当前加载的配置
+            console.log('5. 当前加载的配置数量:', this.localCodes.length);
+            this.localCodes.forEach((config, index) => {
+                console.log(`   配置${index + 1}:`, {
+                    name: config.name,
+                    hasSecret: !!config.secret,
+                    secretLength: config.secret?.length || 0
+                });
+            });
+            
+        } catch (error) {
+            console.error('诊断过程出错:', error);
+        }
+        
+        console.log('=== 诊断完成 ===');
     }
 }
 

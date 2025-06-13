@@ -66,33 +66,42 @@ class LocalStorageManager {
             console.log('本地配置保存成功:', listItem);
             return { success: true, config: listItem };
         } catch (error) {
-            console.error('添加本地配置失败:', error);
-            return { success: false, message: `添加配置失败: ${error.message}` };
+            console.error('添加本地配置失败:', error);            return { success: false, message: `添加配置失败: ${error.message}` };
         }
     }
 
     // 获取本地配置（解密）
     async getLocalConfig(configId) {
         try {
+            console.log('获取本地配置，ID:', configId);
+            
             // 获取加密配置
             const encryptedConfig = await this.getEncryptedConfig(configId);
             if (!encryptedConfig) {
+                console.log('配置不存在，ID:', configId);
                 return { success: false, message: '配置不存在' };
             }
             
+            console.log('找到加密配置，长度:', encryptedConfig.length);
+            
             // 获取加密密钥
             const encryptionKey = await this.getEncryptionKey();
+            console.log('加密密钥状态:', encryptionKey ? '自定义密钥' : '默认密钥');
             
             // 解密配置（复用云端解密逻辑）
             const decryptedConfig = await this.cryptoManager.decrypt(encryptedConfig, encryptionKey);
             
             if (!decryptedConfig) {
+                console.error('解密失败，可能密钥不匹配，配置ID:', configId);
                 return { success: false, message: '解密失败，请检查密钥' };
             }
             
+            console.log('解密成功，配置名称:', decryptedConfig.name);
+            console.log('配置包含的字段:', Object.keys(decryptedConfig));
+            
             return { success: true, config: decryptedConfig };
         } catch (error) {
-            console.error('获取本地配置失败:', error);
+            console.error('获取本地配置失败:', error, '配置ID:', configId);
             return { success: false, message: `获取配置失败: ${error.message}` };
         }
     }

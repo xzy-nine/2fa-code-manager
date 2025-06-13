@@ -2,21 +2,55 @@
 // Service Worker环境不支持ES6模块，需要使用importScripts
 
 // 导入所有需要的脚本 - 这些脚本将通过全局变量暴露类
+// 首先导入依赖库
+importScripts('./lib/otpauth.umd.min.js');
+
+// 然后导入基础模块（按依赖顺序）
 importScripts('./crypto.js');
 importScripts('./totp.js');
 importScripts('./local-storage.js');
 importScripts('./webdav.js');
-importScripts('./globals.js');  // 导入全局变量管理器
+
+// 最后导入全局变量管理器
+importScripts('./globals.js');
 
 // 统一的后台服务管理器
 class BackgroundManager {
     constructor() {
-        // 使用全局变量创建模块实例
-        this.crypto = Modules.getCrypto();
-        this.totp = Modules.getTOTP();
-        this.storage = Modules.getStorage();
-        this.webdav = Modules.getWebDAV();
-        this.init();
+        try {
+            console.log('开始初始化BackgroundManager...');
+            
+            // 检查必需的库是否已加载
+            if (typeof OTPAuth === 'undefined') {
+                throw new Error('OTPAuth库未加载');
+            }
+            
+            if (typeof GlobalScope === 'undefined') {
+                throw new Error('GlobalScope未定义');
+            }
+            
+            if (typeof Modules === 'undefined') {
+                throw new Error('Modules模块管理器未定义');
+            }
+            
+            // 使用全局变量创建模块实例
+            this.crypto = Modules.getCrypto();
+            this.totp = Modules.getTOTP();
+            this.storage = Modules.getStorage();
+            this.webdav = Modules.getWebDAV();
+            
+            console.log('模块实例创建完成:', {
+                crypto: !!this.crypto,
+                totp: !!this.totp,
+                storage: !!this.storage,
+                webdav: !!this.webdav
+            });
+            
+            this.init();
+        } catch (error) {
+            console.error('BackgroundManager初始化失败:', error);
+            throw error;
+        }
     }
 
     async init() {
@@ -156,5 +190,19 @@ class BackgroundManager {
     }
 }
 
+// 全局错误处理
+self.addEventListener('error', (event) => {
+    console.error('Service Worker全局错误:', event.error);
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+    console.error('Service Worker未处理的Promise拒绝:', event.reason);
+});
+
 // 创建后台管理器实例
-const backgroundManager = new BackgroundManager();
+try {
+    const backgroundManager = new BackgroundManager();
+    console.log('BackgroundManager实例创建成功');
+} catch (error) {
+    console.error('BackgroundManager实例创建失败:', error);
+}

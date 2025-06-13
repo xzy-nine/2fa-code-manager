@@ -177,6 +177,34 @@
 
 ## 🔧 技术架构更新 (2025年6月)
 
+### TOTP库升级
+
+项目已从自实现的TOTP算法升级到使用成熟的 [OTPAuth](https://github.com/hectorm/otpauth) 库：
+
+#### 主要改进
+
+- ✅ **成熟稳定**: 使用经过广泛测试的OTPAuth库（9.4.0版本）
+- ✅ **标准兼容**: 完全符合RFC 4226 (HOTP) 和 RFC 6238 (TOTP) 标准
+- ✅ **功能增强**: 支持更多算法和配置选项
+- ✅ **向后兼容**: 保留了原有的API接口和功能
+
+#### 技术架构
+
+```html
+<!-- 库加载顺序 -->
+<script src="./js/lib/otpauth.umd.min.js"></script>  <!-- OTPAuth库 -->
+<script src="./js/totp.js"></script>                 <!-- TOTP适配器 -->
+```
+
+#### 使用方式
+
+```javascript
+// 原有API保持不变
+const totp = new TOTPGenerator();
+const code = await totp.generateTOTP(secret);
+const currentInfo = await totp.getCurrentCode(secret);
+```
+
 ### 全局变量模块系统
 
 项目已从ES6模块系统迁移到全局变量模块系统，以确保与Chrome扩展的Service Worker环境完全兼容：
