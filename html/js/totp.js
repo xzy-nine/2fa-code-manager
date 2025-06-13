@@ -3,9 +3,7 @@ class TOTPGenerator {
     constructor() {
         this.timeStep = 30; // 30秒时间步长
         this.digits = 6;    // 6位验证码
-    }
-
-    // Base32解码
+    }    // Base32解码
     base32Decode(base32) {
         const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
         let bits = '';
@@ -13,18 +11,25 @@ class TOTPGenerator {
 
         // 移除空格和转换为大写
         base32 = base32.replace(/\s/g, '').toUpperCase();
+        console.log('清理后的Base32密钥:', base32);
 
         for (let i = 0; i < base32.length; i++) {
             const val = base32chars.indexOf(base32.charAt(i));
-            if (val === -1) continue;
+            if (val === -1) {
+                console.error('无效的Base32字符:', base32.charAt(i), '在位置:', i);
+                continue;
+            }
             bits += val.toString(2).padStart(5, '0');
         }
+
+        console.log('转换后的二进制长度:', bits.length);
 
         for (let i = 0; i + 8 <= bits.length; i += 8) {
             const chunk = bits.substr(i, 8);
             hex += parseInt(chunk, 2).toString(16).padStart(2, '0');
         }
 
+        console.log('最终十六进制结果:', hex);
         return hex;
     }
 
@@ -48,19 +53,31 @@ class TOTPGenerator {
 
         const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageBuffer);
         return Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
-    // 生成TOTP验证码
+    }    // 生成TOTP验证码
     async generateTOTP(secret, timeOffset = 0) {
         try {
+            console.log('开始生成TOTP，密钥:', secret?.substring(0, 8) + '...');
+            
+            // 验证密钥
+            if (!secret) {
+                throw new Error('密钥为空');
+            }
+            
             // 解码Base32密钥
             const key = this.base32Decode(secret);
+            console.log('Base32解码结果长度:', key.length);
+            
+            if (!key || key.length === 0) {
+                throw new Error('Base32解码失败');
+            }
             
             // 计算时间计数器
             const time = Math.floor((Date.now() / 1000 + timeOffset) / this.timeStep);
+            console.log('时间计数器:', time);
             
             // 计算HMAC
             const hmac = await this.hmacSha1(key, time);
+            console.log('HMAC计算结果长度:', hmac.length);
             
             // 动态截取
             const offset = parseInt(hmac.substring(hmac.length - 1), 16);
@@ -71,7 +88,9 @@ class TOTPGenerator {
                 (parseInt(hmac.substr(offset * 2 + 6, 2), 16) & 0xff)
             ) % Math.pow(10, this.digits);
 
-            return code.toString().padStart(this.digits, '0');
+            const result = code.toString().padStart(this.digits, '0');
+            console.log('最终生成的验证码:', result);
+            return result;
         } catch (error) {
             console.error('生成TOTP失败:', error);
             return null;
@@ -178,10 +197,9 @@ class TOTPGenerator {
         }
         
         return secret;
-    }
-
-    // 计算验证码进度（用于UI显示）
-    getCodeProgress() {        const now = Math.floor(Date.now() / 1000);
+    }    // 计算验证码进度（用于UI显示）
+    getCodeProgress() {
+        const now = Math.floor(Date.now() / 1000);
         const timeRemaining = this.timeStep - (now % this.timeStep);
         const progress = ((this.timeStep - timeRemaining) / this.timeStep) * 100;
         

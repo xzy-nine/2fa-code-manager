@@ -392,12 +392,14 @@ class PopupManager {constructor() {
         } catch (error) {
             this.showMessage('填充验证码失败: ' + error.message, 'error');
         }
-    }
-
-    // 填充验证码
+    }    // 填充验证码
     async fillCode(config) {
         try {
-            const code = this.totpGenerator.generate(config.secret);
+            const code = await this.totpGenerator.generateTOTP(config.secret);
+            
+            if (!code) {
+                throw new Error('生成验证码失败');
+            }
             
             // 发送消息给content script进行填充
             const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -496,15 +498,31 @@ class PopupManager {constructor() {
                 this.showMessage('验证码已复制', 'success');
             });
         });
-    }
-
-    // 更新本地验证码显示
+    }    // 更新本地验证码显示
     async updateLocalCodesDisplay() {
+        console.log('开始更新本地验证码显示，配置数量:', this.localCodes.length);
+        
         for (const config of this.localCodes) {
             const element = document.querySelector(`[data-secret="${config.secret}"]`);
+            console.log('处理配置:', config.name, '元素找到:', !!element);
+            
             if (element) {
-                const code = this.totpGenerator.generate(config.secret);
-                element.textContent = code;
+                try {
+                    console.log('开始生成TOTP，密钥:', config.secret?.substring(0, 8) + '...');
+                    const code = await this.totpGenerator.generateTOTP(config.secret);
+                    console.log('生成的验证码:', code);
+                    
+                    if (code) {
+                        element.textContent = code;
+                        console.log('验证码已更新到页面:', code);
+                    } else {
+                        element.textContent = '------';
+                        console.error('生成验证码失败（返回null）:', config.name);
+                    }
+                } catch (error) {
+                    element.textContent = '------';
+                    console.error('生成验证码出错:', error, config.name);
+                }
             }
         }
     }
@@ -524,14 +542,12 @@ class PopupManager {constructor() {
                 this.updateTimerDisplay();
             }
         }, 1000);
-    }
-
-    // 更新计时器显示
+    }    // 更新计时器显示
     updateTimerDisplay() {
         const progress = this.totpGenerator.getCodeProgress();
         
         document.querySelectorAll('.timer-progress').forEach(element => {
-            const rotation = (1 - progress.progress) * 360;
+            const rotation = (progress.progress / 100) * 360;
             element.style.transform = `rotate(${rotation}deg)`;
         });
 
@@ -543,7 +559,7 @@ class PopupManager {constructor() {
         if (progress.timeRemaining <= 1) {
             setTimeout(() => this.updateLocalCodesDisplay(), 100);
         }
-    }    // 开始摄像头扫描
+    }// 开始摄像头扫描
     async startCameraScanning() {
         const videoElement = document.getElementById('cameraVideo');
         const canvasElement = document.getElementById('scanCanvas');
