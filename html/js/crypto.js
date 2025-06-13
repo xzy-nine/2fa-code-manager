@@ -1,10 +1,17 @@
 // 全局作用域管理 - 在第一个加载的模块中定义
 const GlobalScope = (() => {
-    if (typeof globalThis !== 'undefined') return globalThis;
-    if (typeof window !== 'undefined') return window;
-    if (typeof self !== 'undefined') return self;
-    if (typeof global !== 'undefined') return global;
-    throw new Error('无法确定全局作用域');
+    const scope = (() => {
+        if (typeof globalThis !== 'undefined') return globalThis;
+        if (typeof window !== 'undefined') return window;
+        if (typeof self !== 'undefined') return self;
+        if (typeof global !== 'undefined') return global;
+        throw new Error('无法确定全局作用域');
+    })();
+    
+    // 确保 GlobalScope 属性存在
+    scope.GlobalScope = scope.GlobalScope || {};
+    
+    return scope.GlobalScope;
 })();
 
 // 加密解密模块

@@ -1,4 +1,7 @@
 // 二维码扫描模块
+// 引用 core 中的公共工具函数（使用全局变量）
+const QRScannerCoreUtils = GlobalScope.CoreUtils;
+
 class QRScanner {
     constructor() {
         this.video = null;
@@ -206,18 +209,15 @@ class QRScanner {
             // 请求屏幕录制权限
             const stream = await navigator.mediaDevices.getDisplayMedia({
                 video: true,
-                audio: false
-            });
-
-            // 创建视频元素来显示屏幕内容
-            const video = document.createElement('video');
+                audio: false            });            // 创建视频元素来显示屏幕内容
+            const video = QRScannerCoreUtils.createElement('video');
             video.srcObject = stream;
             video.play();
 
             return new Promise((resolve) => {
                 video.onloadedmetadata = () => {
                     // 创建canvas来捕获屏幕帧
-                    const canvas = document.createElement('canvas');
+                    const canvas = QRScannerCoreUtils.createElement('canvas');
                     const context = canvas.getContext('2d');
                     
                     canvas.width = video.videoWidth;
@@ -257,17 +257,15 @@ class QRScanner {
     async scanFromFile(file) {
         return new Promise((resolve) => {
             const reader = new FileReader();
-            
-            reader.onload = (e) => {
+              reader.onload = (e) => {
                 const img = new Image();
-                
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
+                  img.onload = () => {
+                    const canvas = QRScannerCoreUtils.createElement('canvas');
                     const context = canvas.getContext('2d');
                     
                     canvas.width = img.width;
                     canvas.height = img.height;
-                    context.drawImage(img, 0, 0);                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    context.drawImage(img, 0, 0);const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
                     
                     try {
                         const qrData = this.decodeQRCode(imageData);

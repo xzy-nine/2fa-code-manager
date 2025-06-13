@@ -1,6 +1,10 @@
 // 设置页面的JavaScript代码 - 全局变量版本
 // 使用全局变量导入模块（GlobalScope已在crypto.js中定义）
 
+// 引用 core 中的公共工具函数（使用全局变量）
+const CoreUtils = GlobalScope.CoreUtils;
+// IconManager 已在 core/iconManager.js 中定义为全局常量，直接使用 GlobalScope.IconManager
+
 // 从全局变量获取模块
 const Crypto = GlobalScope.CryptoManager;
 const WebDAV = GlobalScope.WebDAVClient;
@@ -55,13 +59,14 @@ class SettingManager {
             
             ${this.renderAddConfigModal()}
         `;
-    }
-
-    // 渲染WebDAV设置区域
+    }    // 渲染WebDAV设置区域
     renderWebDAVSection() {
         return `
             <section class="settings-section">
                 <h2>WebDAV同步设置</h2>
+                <div class="info-box">
+                    <p><strong>注意：</strong>要使用云端同步功能（备份到云端、从云端恢复），必须先配置WebDAV服务器信息。</p>
+                </div>
                 <div class="form-group">
                     <label for="webdavUrl">服务器地址</label>
                     <input type="url" id="webdavUrl" placeholder="https://your-server.com/webdav">
@@ -393,11 +398,16 @@ class SettingManager {
             saveButton.textContent = '保存';
             saveButton.onclick = () => this.saveNewConfig();
         }
-    }
-
-    // 自动备份到云端
+    }    // 自动备份到云端
     async backupToCloud(config) {
         try {
+            // 检查WebDAV是否已配置
+            const webdavConfig = await this.getStorageData('webdavConfig');
+            if (!webdavConfig || !webdavConfig.url || !webdavConfig.username || !webdavConfig.password) {
+                console.log('WebDAV未配置，跳过自动备份');
+                return;
+            }
+
             if (this.webdavClient) {
                 const backupResult = await this.webdavClient.addConfig(config);
                 if (backupResult.success) {
@@ -406,12 +416,14 @@ class SettingManager {
                     console.warn('云端备份失败:', backupResult.message);
                     this.showMessage('云端备份失败，但本地已保存', 'warning', 3000);
                 }
+            } else {
+                console.log('WebDAV客户端未初始化，跳过自动备份');
             }
         } catch (error) {
             console.warn('云端备份出错:', error);
             // 备份失败不影响主要功能
         }
-    }    clearConfigForm() {
+    }clearConfigForm() {
         const fields = ['configName', 'configSecret', 'configIssuer', 'configAccount', 'configDigits', 'configPeriod'];
         fields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
@@ -425,9 +437,7 @@ class SettingManager {
                 }
             }
         });
-    }
-
-    async exportConfigs() {
+    }    async exportConfigs() {
         try {
             const configs = await this.localStorageManager.getAllLocalConfigs();
             const dataStr = JSON.stringify(configs, null, 2);
@@ -435,9 +445,10 @@ class SettingManager {
             
             const exportFileDefaultName = `2fa-configs-${new Date().toISOString().split('T')[0]}.json`;
             
-            const linkElement = document.createElement('a');
-            linkElement.setAttribute('href', dataUri);
-            linkElement.setAttribute('download', exportFileDefaultName);
+            const linkElement = CoreUtils.createElement('a', '', {
+                href: dataUri,
+                download: exportFileDefaultName
+            });
             linkElement.click();
             
             this.showMessage('配置已导出', 'success');
@@ -447,9 +458,10 @@ class SettingManager {
     }
 
     async importConfigs() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
+        const input = CoreUtils.createElement('input', '', {
+            type: 'file',
+            accept: '.json'
+        });
         
         input.onchange = (event) => {
             const file = event.target.files[0];
@@ -480,8 +492,15 @@ class SettingManager {
     }    // 备份本地配置到云端
     async backupToCloud() {
         try {
+            // 检查WebDAV是否已配置
+            const webdavConfig = await this.getStorageData('webdavConfig');
+            if (!webdavConfig || !webdavConfig.url || !webdavConfig.username || !webdavConfig.password) {
+                this.showMessage('请先在WebDAV同步设置中配置服务器地址、用户名和密码', 'warning');
+                return;
+            }
+
             if (!this.webdavClient) {
-                this.showMessage('请先配置WebDAV服务器', 'warning');
+                this.showMessage('WebDAV客户端未初始化，请先保存WebDAV设置', 'warning');
                 return;
             }
 
@@ -518,17 +537,42 @@ class SettingManager {
                 this.showMessage(`成功备份 ${successCount} 个配置到云端`, 'success');
             } else {
                 this.showMessage(`备份完成：成功 ${successCount} 个，失败 ${failCount} 个`, 'warning');
+            }        } catch (error) {
+            console.error('备份到云端失败:', error);
+            
+            let errorMessage = '备份失败: ';
+            
+            // 根据不同的错误类型提供更具体的错误信息
+            if (error.message === 'Failed to fetch') {
+                errorMessage += '网络连接失败，请检查：\n' +
+                              '1. WebDAV服务器地址是否正确\n' +
+                              '2. 网络连接是否正常\n' +
+                              '3. 服务器是否支持CORS跨域请求\n' +
+                              '4. 防火墙是否阻止了连接';
+            } else if (error.message.includes('401')) {
+                errorMessage += 'WebDAV认证失败，请检查用户名和密码';
+            } else if (error.message.includes('404')) {
+                errorMessage += 'WebDAV服务器路径不存在，请检查服务器配置';
+            } else if (error.message.includes('timeout')) {
+                errorMessage += '连接超时，请检查网络或服务器状态';
+            } else {
+                errorMessage += error.message;
             }
-        } catch (error) {
-            this.showMessage('备份失败: ' + error.message, 'error');
+            
+            this.showMessage(errorMessage, 'error', 8000);
         }
-    }
-
-    // 从云端恢复配置到本地
+    }    // 从云端恢复配置到本地
     async restoreFromCloud() {
         try {
+            // 检查WebDAV是否已配置
+            const webdavConfig = await this.getStorageData('webdavConfig');
+            if (!webdavConfig || !webdavConfig.url || !webdavConfig.username || !webdavConfig.password) {
+                this.showMessage('请先在WebDAV同步设置中配置服务器地址、用户名和密码', 'warning');
+                return;
+            }
+
             if (!this.webdavClient) {
-                this.showMessage('请先配置WebDAV服务器', 'warning');
+                this.showMessage('WebDAV客户端未初始化，请先保存WebDAV设置', 'warning');
                 return;
             }
 
@@ -733,9 +777,7 @@ class SettingManager {
         } catch (error) {
             this.showMessage('获取配置失败: ' + error.message, 'error');
         }
-    }
-
-    // 删除配置
+    }    // 删除配置
     async deleteConfig(index) {
         if (!confirm('确定要删除这个配置吗？')) {
             return;
@@ -744,7 +786,7 @@ class SettingManager {
         try {
             const configs = await this.localStorageManager.getAllLocalConfigs();
             if (index >= 0 && index < configs.length) {
-                const result = await this.localStorageManager.removeLocalConfig(configs[index].id);
+                const result = await this.localStorageManager.deleteLocalConfig(configs[index].id);
                 if (result.success) {
                     this.showMessage('配置已删除', 'success');
                     this.updateConfigList();
@@ -832,7 +874,41 @@ class SettingManager {
             }
         } catch (error) {
             this.showMessage('更新失败: ' + error.message, 'error');
+        }    }
+
+    // 获取存储数据的通用方法
+    async getStorageData(key) {
+        try {
+            const result = await chrome.storage.local.get([key]);
+            return result[key];
+        } catch (error) {
+            console.error(`获取存储数据失败 (${key}):`, error);
+            return null;
         }
+    }
+
+    // 显示消息提示
+    showMessage(message, type = 'info', duration = 3000) {
+        // 移除现有消息
+        const existingMessage = document.querySelector('.message');
+        if (existingMessage) {
+            existingMessage.remove();
+        }
+
+        // 创建新消息
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message message-${type}`;
+        messageDiv.textContent = message;
+        
+        // 添加到页面
+        document.body.appendChild(messageDiv);
+        
+        // 自动移除
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.remove();
+            }
+        }, duration);
     }
 
     // HTML转义函数

@@ -1,6 +1,8 @@
 // 弹出页面主脚本
 // 使用全局变量导入模块（GlobalScope已在crypto.js中定义）
 
+// GlobalScope 已在 crypto.js 中定义，这里直接使用
+
 // 从全局变量获取模块
 const Crypto = GlobalScope.CryptoManager;
 const TOTP = GlobalScope.TOTPGenerator;
@@ -8,10 +10,41 @@ const WebDAV = GlobalScope.WebDAVClient;
 const Storage = GlobalScope.LocalStorageManager;
 const QRCode = GlobalScope.QRScanner;
 
+// 引用 core 中的公共工具函数（使用全局变量）
+// 延迟获取 CoreUtils 以确保模块已经加载
+const getPopupCoreUtils = () => {
+    // 首先尝试从 GlobalScope 获取
+    if (GlobalScope && GlobalScope.CoreUtils) {
+        return GlobalScope.CoreUtils;
+    }
+    
+    // 如果 GlobalScope.CoreUtils 不可用，尝试从 window 获取
+    if (typeof window !== 'undefined' && window.GlobalScope && window.GlobalScope.CoreUtils) {
+        return window.GlobalScope.CoreUtils;
+    }
+    
+    // 最后的备选方案，检查全局 Utils 变量
+    if (typeof Utils !== 'undefined') {
+        return Utils;
+    }
+    
+    return null;
+};
+const getPopupMenu = () => {
+    if (GlobalScope && GlobalScope.Menu) {
+        return GlobalScope.Menu;
+    }
+    if (typeof window !== 'undefined' && window.GlobalScope && window.GlobalScope.Menu) {
+        return window.GlobalScope.Menu;
+    }
+    return null;
+};
+
 // 使用全局工具函数（在main.js中定义）
 // Utils 已经在全局作用域中可用，无需重新声明
 
-class PopupManager {constructor() {
+class PopupManager {
+    constructor() {
         this.currentTab = 'fill';
         this.authenticated = false;
         this.localAuthenticated = false;
@@ -22,6 +55,30 @@ class PopupManager {constructor() {
         this.currentSiteInfo = null;
         this.localCodes = [];
         this.updateInterval = null;
+        
+        // 等待模块加载完成后再初始化
+        this.waitForModulesAndInit();
+    }
+
+    // 等待必要模块加载
+    async waitForModulesAndInit() {
+        let attempts = 0;
+        const maxAttempts = 50; // 最多等待5秒
+        
+        while (attempts < maxAttempts) {
+            const coreUtils = getPopupCoreUtils();
+            if (coreUtils) {
+                console.log('CoreUtils loaded successfully');
+                break;
+            }
+            
+            attempts++;
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        if (attempts >= maxAttempts) {
+            console.warn('CoreUtils not loaded after waiting, continuing with fallback');
+        }
         
         this.init();
     }
@@ -769,16 +826,19 @@ class PopupManager {constructor() {
                 
                 // 清理扫描数据
                 this.scannedData = null;
-                
-                // 自动备份到云端（如果可用）
+                  // 自动备份到云端（如果可用）
                 try {
-                    if (this.webdavClient) {
+                    // 检查WebDAV是否已配置
+                    const webdavConfig = await this.getStorageData('webdavConfig');
+                    if (webdavConfig && webdavConfig.url && webdavConfig.username && webdavConfig.password && this.webdavClient) {
                         const backupResult = await this.webdavClient.addConfig(config);
                         if (backupResult.success) {
                             this.showMessage('已自动备份到云端', 'info', 2000);
                         } else {
                             console.warn('云端备份失败:', backupResult.message);
                         }
+                    } else {
+                        console.log('WebDAV未配置或客户端未初始化，跳过自动备份');
                     }                } catch (backupError) {
                     console.warn('云端备份出错:', backupError);
                     // 备份失败不影响主要功能
@@ -832,13 +892,41 @@ class PopupManager {constructor() {
             console.error('初始化WebDAV客户端失败:', error);
             this.webdavClient = null;
         }
-    }
-
-    // 显示消息
+    }    // 显示消息
     showMessage(message, type = 'info') {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message message-${type}`;
-        messageDiv.textContent = message;
+        const coreUtils = getPopupCoreUtils();
+        if (!coreUtils) {
+            console.error('CoreUtils not available, using fallback implementation');
+            // 使用备用实现
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${type}`;
+            messageDiv.textContent = message;
+            messageDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                background: ${type === 'error' ? '#ff4444' : type === 'success' ? '#00aa00' : '#0066cc'};
+                color: white;
+                border-radius: 4px;
+                z-index: 10000;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                font-size: 14px;
+                max-width: 300px;
+                word-wrap: break-word;
+            `;
+            
+            document.body.appendChild(messageDiv);
+            
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.remove();
+                }
+            }, 3000);
+            return;
+        }
+        
+        const messageDiv = coreUtils.createElement('div', `message message-${type}`, {}, message);
         
         document.body.appendChild(messageDiv);
         
@@ -1031,6 +1119,15 @@ window.addEventListener('beforeunload', () => {
 
 // 全局变量导出 - 支持多种环境
 (() => {
-    GlobalScope.PopupManager = PopupManager;
-    GlobalScope.popupManager = popupManager;
+    const globalScope = (() => {
+        if (typeof globalThis !== 'undefined') return globalThis;
+        if (typeof window !== 'undefined') return window;
+        if (typeof self !== 'undefined') return self;
+        if (typeof global !== 'undefined') return global;
+        return {};
+    })();
+    
+    globalScope.GlobalScope = globalScope.GlobalScope || {};
+    globalScope.GlobalScope.PopupManager = PopupManager;
+    globalScope.GlobalScope.popupManager = popupManager;
 })();

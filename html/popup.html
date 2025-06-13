@@ -178,7 +178,14 @@
             <div class="modal-body" id="modalBody">
                 <!-- 动态内容 -->
             </div>        </div>    </div>    <!-- 按依赖顺序加载模块 -->
+    <!-- 首先加载crypto.js以初始化GlobalScope -->
     <script src="./js/crypto.js"></script>
+    <!-- 然后加载core模块 -->
+    <script src="./js/core/utils.js"></script>
+    <script src="./js/core/menu.js"></script>
+    <script src="./js/core/iconManager.js"></script>
+    
+    <!-- 然后加载其他模块 -->
     <script src="./js/lib/otpauth.umd.min.js"></script>
     <script src="./js/totp.js"></script>
     <script src="./js/local-storage.js"></script>

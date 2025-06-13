@@ -42,9 +42,20 @@ class WebDAVClient {
                 return { success: false, message: '认证失败，请检查用户名和密码' };
             } else {
                 return { success: false, message: `连接失败: ${response.status} ${response.statusText}` };
+            }        } catch (error) {
+            console.error('WebDAV连接测试错误:', error);
+            
+            let errorMessage = '网络错误: ';
+            
+            if (error.message === 'Failed to fetch') {
+                errorMessage += '无法连接到服务器，请检查：1) 服务器地址是否正确 2) 网络连接是否正常 3) 服务器是否在线 4) 是否被防火墙阻止';
+            } else if (error.name === 'TypeError') {
+                errorMessage += '请求配置错误，请检查服务器地址格式';
+            } else {
+                errorMessage += error.message;
             }
-        } catch (error) {
-            return { success: false, message: `网络错误: ${error.message}` };
+            
+            return { success: false, message: errorMessage };
         }
     }
 
@@ -81,9 +92,21 @@ class WebDAVClient {
                 return { success: true, message: '上传成功' };
             } else {
                 return { success: false, message: `上传失败: ${response.status} ${response.statusText}` };
+            }        } catch (error) {
+            console.error('WebDAV上传错误:', error);
+            
+            let errorMessage = '上传错误: ';
+            
+            // 根据错误类型提供更具体的信息
+            if (error.message === 'Failed to fetch') {
+                errorMessage += '网络请求失败，可能原因：网络连接问题、服务器不可达或CORS策略阻止';
+            } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                errorMessage += '请求配置错误或网络异常';
+            } else {
+                errorMessage += error.message;
             }
-        } catch (error) {
-            return { success: false, message: `上传错误: ${error.message}` };
+            
+            return { success: false, message: errorMessage, originalError: error };
         }
     }
 
@@ -174,10 +197,14 @@ class WebDAVClient {
         } catch (error) {
             return { success: false, message: `列表错误: ${error.message}` };
         }
-    }
-
-    // 获取配置列表
+    }    // 获取配置列表
     async getConfigList() {
+        // 检查WebDAV是否已正确配置
+        if (!this.baseUrl || !this.username || !this.password) {
+            console.warn('WebDAV配置不完整，返回空配置列表');
+            return [];
+        }
+
         const result = await this.downloadFile(this.configListFile);
         if (result.success) {
             return result.data || [];
@@ -185,16 +212,28 @@ class WebDAVClient {
             // 如果文件不存在，返回空列表
             return [];
         }
-    }
-
-    // 更新配置列表
+    }    // 更新配置列表
     async updateConfigList(configList) {
-        return await this.uploadFile(this.configListFile, configList);
-    }
+        // 检查WebDAV是否已正确配置
+        if (!this.baseUrl || !this.username || !this.password) {
+            return { 
+                success: false, 
+                message: 'WebDAV配置不完整，请先配置服务器地址、用户名和密码' 
+            };
+        }
 
-    // 添加新配置
+        return await this.uploadFile(this.configListFile, configList);
+    }// 添加新配置
     async addConfig(config) {
         try {
+            // 检查WebDAV是否已正确配置
+            if (!this.baseUrl || !this.username || !this.password) {
+                return { 
+                    success: false, 
+                    message: 'WebDAV配置不完整，请先配置服务器地址、用户名和密码' 
+                };
+            }
+
             // 生成配置ID
             const configId = this.generateConfigId();
             const configFile = `${configId}.json`;
@@ -234,11 +273,17 @@ class WebDAVClient {
         } catch (error) {
             return { success: false, message: `添加配置失败: ${error.message}` };
         }
-    }
-
-    // 获取配置详情
+    }    // 获取配置详情
     async getConfig(configId, encryptionKey = null) {
         try {
+            // 检查WebDAV是否已正确配置
+            if (!this.baseUrl || !this.username || !this.password) {
+                return { 
+                    success: false, 
+                    message: 'WebDAV配置不完整，请先配置服务器地址、用户名和密码' 
+                };
+            }
+
             const configList = await this.getConfigList();
             const configItem = configList.find(item => item.id === configId);
             
@@ -263,11 +308,17 @@ class WebDAVClient {
         } catch (error) {
             return { success: false, message: `获取配置失败: ${error.message}` };
         }
-    }
-
-    // 删除配置
+    }    // 删除配置
     async deleteConfig(configId) {
         try {
+            // 检查WebDAV是否已正确配置
+            if (!this.baseUrl || !this.username || !this.password) {
+                return { 
+                    success: false, 
+                    message: 'WebDAV配置不完整，请先配置服务器地址、用户名和密码' 
+                };
+            }
+
             const configList = await this.getConfigList();
             const configIndex = configList.findIndex(item => item.id === configId);
             

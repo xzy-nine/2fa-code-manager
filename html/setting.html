@@ -2,15 +2,25 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">    <title>2FA验证码管家 - 设置</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">    
+    <title>2FA验证码管家 - 设置</title>
     <link rel="stylesheet" href="../css/settings.css">
 </head>
 <body>    <!-- 主容器 - 将由JS动态生成内容 -->
     <div id="app" class="container">
-        <!-- 页面内容将通过JavaScript动态加载 -->
-    </div>    <!-- 按依赖顺序加载模块 -->
-    <script src="./js/globals.js"></script>
+        <!-- 页面内容将通过JavaScript动态加载 -->    </div>
+    
+    <!-- 按依赖顺序加载模块 -->
+    <!-- 首先加载基础模块和全局作用域 -->
     <script src="./js/crypto.js"></script>
+    <script src="./js/globals.js"></script>
+    
+    <!-- 然后加载core模块 -->
+    <script src="./js/core/utils.js"></script>
+    <script src="./js/core/menu.js"></script>
+    <script src="./js/core/iconManager.js"></script>
+    
+    <!-- 加载其他模块 -->
     <script src="./js/lib/otpauth.umd.min.js"></script>
     <script src="./js/totp.js"></script>
     <script src="./js/local-storage.js"></script>
@@ -18,7 +28,5 @@
     <script src="./js/qr-scanner.js"></script>
     <script src="./js/main.js"></script>
     <script src="./js/setting.js"></script>
-    <!-- 开发测试脚本 - 生产环境中可以移除 -->
-    <script src="./js/test-settings.js"></script>
 </body>
 </html>

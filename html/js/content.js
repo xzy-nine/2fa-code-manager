@@ -1,5 +1,20 @@
 // 内容脚本 - 负责页面交互
 // Content Script环境不支持ES6模块，使用全局类
+
+// 引入工具函数（由于content script环境限制，这里需要特殊处理）
+// 我们将在扩展的manifest中确保core工具可用
+
+// 简化的工具函数，专门用于content script环境
+const ContentUtils = {
+    createElement: (tag, className, attributes = {}, content = '') => {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value));
+        if (content) element.innerHTML = content;
+        return element;
+    }
+};
+
 class ContentScript {
     constructor() {
         this.selectedInput = null;
@@ -113,8 +128,7 @@ class ContentScript {
     createIndicator() {
         if (document.getElementById('totp-indicator')) return;
 
-        const indicator = document.createElement('div');
-        indicator.id = 'totp-indicator';
+        const indicator = ContentUtils.createElement('div', '', { id: 'totp-indicator' });
         indicator.innerHTML = `
             <div class="totp-indicator-content">
                 <span class="totp-icon">🔐</span>
@@ -123,7 +137,7 @@ class ContentScript {
         `;
 
         // 添加样式
-        const style = document.createElement('style');
+        const style = ContentUtils.createElement('style');
         style.textContent = `
             #totp-indicator {
                 position: fixed;
@@ -161,8 +175,7 @@ class ContentScript {
             .totp-selected {
                 outline: 2px solid #667eea !important;
                 outline-offset: 2px !important;
-                box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2) !important;
-                transition: all 0.2s ease !important;
+                box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.3) !important;
             }
             
             .totp-filling {
@@ -278,15 +291,11 @@ class ContentScript {
         }
 
         // 创建新消息
-        const messageDiv = document.createElement('div');
-        messageDiv.id = 'totp-message';
-        messageDiv.className = `totp-message totp-message-${type}`;
-        messageDiv.textContent = message;
+        const messageDiv = ContentUtils.createElement('div', `totp-message totp-message-${type}`, { id: 'totp-message' }, message);
 
         // 添加样式
         if (!document.getElementById('totp-message-style')) {
-            const style = document.createElement('style');
-            style.id = 'totp-message-style';
+            const style = ContentUtils.createElement('style', '', { id: 'totp-message-style' });
             style.textContent = `
                 .totp-message {
                     position: fixed;
@@ -471,7 +480,8 @@ if (document.readyState === 'loading') {
         }, 1000);
     });
 } else {
-    setTimeout(() => {        contentScript.autoDetectInputs();
+    setTimeout(() => {
+        contentScript.autoDetectInputs();
         contentScript.observePageChanges();
     }, 1000);
 }

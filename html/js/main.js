@@ -2,6 +2,64 @@
 // 避免ES6模块，使用全局变量系统
 // GlobalScope已在crypto.js中定义
 
+// 延迟获取 core 中的公共工具函数
+function getCoreUtils() {
+  if (GlobalScope && GlobalScope.CoreUtils) {
+    return GlobalScope.CoreUtils;
+  }
+  // 如果还没有初始化，返回一个临时的工具对象
+  return {
+    createElement: function(tag, className, attributes = {}, content = '') {
+      if (typeof document === 'undefined') return null;
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      Object.keys(attributes).forEach(key => {
+        element.setAttribute(key, attributes[key]);
+      });
+      if (content) element.textContent = content;
+      return element;
+    },
+    replaceEventHandler: function(selector, eventType, handler) {
+      if (typeof document === 'undefined') return;
+      const elements = document.querySelectorAll(selector);
+      elements.forEach(element => {
+        // 移除之前的事件监听器
+        const oldHandler = element._eventHandlers?.[eventType];
+        if (oldHandler) {
+          element.removeEventListener(eventType, oldHandler);
+        }
+        
+        // 添加新的事件监听器
+        element.addEventListener(eventType, handler);
+        
+        // 保存引用以便后续移除
+        element._eventHandlers = element._eventHandlers || {};
+        element._eventHandlers[eventType] = handler;
+      });
+    },
+    debounce: function(func, wait) {
+      let timeout;
+      return function(...args) {
+        const context = this;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(context, args), wait);
+      };
+    },
+    throttle: function(func, limit) {
+      let inThrottle;
+      return function() {
+        const args = arguments;
+        const context = this;
+        if (!inThrottle) {
+          func.apply(context, args);
+          inThrottle = true;
+          setTimeout(() => inThrottle = false, limit);
+        }
+      };
+    }
+  };
+}
+
 // 版本信息
 const VERSION = '2.0.0';
 const BUILD_DATE = new Date().toISOString();
@@ -27,46 +85,21 @@ const ModuleConfig = {
     }
 };
 
-// 全局工具函数
-const Utils = {
-    // 防抖函数
-    debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    },
-
-    // 节流函数
-    throttle(func, limit) {
-        let inThrottle;
-        return function(...args) {
-            if (!inThrottle) {
-                func.apply(this, args);
-                inThrottle = true;
-                setTimeout(() => inThrottle = false, limit);
-            }
-        };
-    },
-
-    // 格式化时间
+// 全局工具函数 - 扩展 core Utils，添加应用特定功能
+const AppUtils = {
+    // 格式化时间（应用特定功能）
     formatTime(seconds) {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
         return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
     },
 
-    // 生成随机ID
+    // 生成随机ID（应用特定功能）
     generateId() {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     },
 
-    // 验证URL格式
+    // 验证URL格式（应用特定功能）
     isValidUrl(string) {
         try {
             new URL(string);
@@ -74,6 +107,11 @@ const Utils = {
         } catch (_) {
             return false;
         }
+    },
+
+    // 获取CoreUtils功能的代理方法
+    getCoreUtils() {
+        return getCoreUtils();
     }
 };
 
@@ -191,9 +229,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     GlobalScope.BUILD_DATE = BUILD_DATE;
     GlobalScope.ModuleConfig = ModuleConfig;
     GlobalScope.Config = ModuleConfig; // 别名
-    
-    // 工具函数
-    GlobalScope.Utils = Utils;
+      // 工具函数
+    GlobalScope.AppUtils = AppUtils;
     
     // 简化访问的别名（向后兼容）
     GlobalScope.Crypto = GlobalScope.CryptoManager;
