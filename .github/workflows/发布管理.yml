@@ -89,7 +89,7 @@ jobs:
         echo "BUILD_FILENAME=$BUILD_FILENAME" >> $GITHUB_ENV
         
         # 推导工件名称（去掉 build/ 前缀）
-        ARTIFACT_NAME="newtab-构建包-${{ inputs.version }}"
+        ARTIFACT_NAME="2FA-构建包-${{ inputs.version }}"
         echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
         
         echo "✅ 工件信息: $ARTIFACT_NAME -> $BUILD_FILENAME"

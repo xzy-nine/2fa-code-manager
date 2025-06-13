@@ -119,7 +119,7 @@ jobs:
         mkdir -p build
         
         # 创建zip包，排除不需要的文件
-        zip -r "newtab-${{ env.VERSION }}.zip" . \
+        zip -r "2FA-${{ env.VERSION }}.zip" . \
           -x ".*" \
           -x "*/.*" \
           -x "build/*" \
@@ -131,10 +131,10 @@ jobs:
           -x "node_modules/*"
         
         # 移动到构建目录
-        mv "newtab-${{ env.VERSION }}.zip" "build/"
+        mv "2FA-${{ env.VERSION }}.zip" "build/"
         
         # 设置构建包路径
-        BUILD_PATH="build/newtab-${{ env.VERSION }}.zip"
+        BUILD_PATH="build/2FA-${{ env.VERSION }}.zip"
         echo "build_path=$BUILD_PATH" >> $GITHUB_OUTPUT
         
         # 验证文件
@@ -151,8 +151,8 @@ jobs:
       if: steps.compare-versions.outputs.is_new_version == 'true' && steps.check-tag-exists.outputs.tag_exists == 'false'
       uses: actions/upload-artifact@v4
       with:
-        name: newtab-构建包-${{ env.VERSION }}
-        path: build/newtab-${{ env.VERSION }}.zip
+        name: 2FA-构建包-${{ env.VERSION }}
+        path: build/2FA-${{ env.VERSION }}.zip
         retention-days: 30
 
     - name: 输出构建结果
