@@ -81,14 +81,18 @@ class PopupManager {
         }
         
         this.init();
-    }
-
-    // 初始化
+    }    // 初始化
     async init() {
         this.initEventListeners();
+        // 首先尝试恢复认证状态
+        this.restoreAuthenticationState();
         await this.loadSettings();
         await this.updateCurrentSite();
         this.startLocalCodeUpdates();
+        // 同步认证状态
+        this.syncAuthenticationStates();
+        // 检查WebAuthn支持情况
+        this.updateAuthButtonStates();
     }
 
     // 初始化事件监听器
@@ -165,9 +169,14 @@ class PopupManager {
                 this.hideModal();
             }
         });
-    }
 
-    // 切换标签页
+        // 窗口关闭前保存认证状态
+        window.addEventListener('beforeunload', () => {
+            if (this.authenticated || this.localAuthenticated) {
+                this.saveAuthenticationState();
+            }
+        });
+    }    // 切换标签页
     switchTab(tabName) {
         // 更新标签按钮状态
         document.querySelectorAll('.popup-tab-btn').forEach(btn => {
@@ -185,61 +194,236 @@ class PopupManager {
 
         // 标签页特殊处理
         if (tabName === 'local') {
-            this.refreshLocalCodes();
+            // 如果填充页已经认证，直接同步到本地页
+            if (this.authenticated) {
+                this.localAuthenticated = true;
+                this.showLocalCodes();
+                this.loadLocalCodes();
+            } else {
+                // 显示认证界面
+                document.getElementById('localAuthSection').style.display = 'block';
+                document.getElementById('localCodes').style.display = 'none';
+            }
         }
-    }
-
-    // 生物识别认证
+    }    // 设备密钥认证
     async authenticateUser() {
         try {
-            this.showMessage('正在进行身份验证...', 'info');
+            this.showMessage('正在启动设备密钥验证...', 'info');
             
-            // 模拟生物识别认证
+            // 使用Web Authentication API进行设备密钥认证
             const result = await this.performBiometricAuth();
             
             if (result.success) {
                 this.authenticated = true;
+                // 同步本地认证状态
+                this.localAuthenticated = true;
                 this.updateAuthStatus();
                 this.showFillSection();
-                this.showMessage('认证成功！', 'success');
+                // 如果本地标签页也需要更新
+                this.updateLocalAuthStatus();
+                // 保存认证状态
+                this.saveAuthenticationState();
+                this.showMessage('设备密钥验证成功！', 'success');
             } else {
-                this.showMessage('认证失败: ' + result.error, 'error');
+                this.showMessage('设备密钥验证失败: ' + result.error, 'error');
             }
         } catch (error) {
-            this.showMessage('认证过程中出现错误: ' + error.message, 'error');
+            this.showMessage('设备密钥验证过程中出现错误: ' + error.message, 'error');
         }
-    }
-
-    // 本地认证
+    }    // 本地设备密钥认证
     async authenticateLocal() {
         try {
-            this.showMessage('正在验证身份...', 'info');
-            
-            const result = await this.performBiometricAuth();
-              if (result.success) {
+            // 如果填充页面已经认证，直接使用该状态
+            if (this.authenticated) {
                 this.localAuthenticated = true;
                 this.showLocalCodes();
                 await this.loadLocalCodes();
                 // 添加诊断调用
                 await this.diagnoseLocalCodes();
                 this.showMessage('本地验证码已解锁！', 'success');
+                return;
+            }
+            
+            this.showMessage('正在启动设备密钥验证...', 'info');
+            
+            const result = await this.performBiometricAuth();
+              if (result.success) {
+                this.localAuthenticated = true;
+                // 同步填充页认证状态
+                this.authenticated = true; 
+                this.updateAuthStatus();
+                this.showLocalCodes();
+                await this.loadLocalCodes();
+                // 添加诊断调用
+                await this.diagnoseLocalCodes();
+                // 保存认证状态
+                this.saveAuthenticationState();
+                this.showMessage('设备密钥验证成功，本地验证码已解锁！', 'success');
             } else {
-                this.showMessage('验证失败: ' + result.error, 'error');
+                this.showMessage('设备密钥验证失败: ' + result.error, 'error');
             }
         } catch (error) {
-            this.showMessage('验证过程中出现错误: ' + error.message, 'error');
+            this.showMessage('设备密钥验证过程中出现错误: ' + error.message, 'error');
+        }
+    }    // 执行设备密钥认证 - 使用Web Authentication API
+    async performBiometricAuth() {
+        try {
+            // 获取认证器信息
+            const authInfo = await this.getAuthenticatorInfo();
+            
+            if (!authInfo.supported) {
+                return { 
+                    success: false, 
+                    error: authInfo.reason || '设备不支持生物识别认证（Windows Hello、指纹、PIN等）' 
+                };
+            }
+
+            // 生成挑战
+            const challenge = new Uint8Array(32);
+            crypto.getRandomValues(challenge);
+
+            // 尝试从存储中获取已注册的凭据ID
+            let credentialId = localStorage.getItem('webauthn_credential_id');
+            
+            if (!credentialId) {
+                // 首次使用，需要注册新凭据
+                this.showMessage('首次使用，正在注册设备密钥...', 'info');
+                const registrationResult = await this.registerWebAuthnCredential(challenge);
+                if (!registrationResult.success) {
+                    return registrationResult;
+                }
+                credentialId = registrationResult.credentialId;
+                this.showMessage('设备密钥注册成功，正在验证...', 'info');
+            }
+
+            // 执行认证
+            const credentialRequestOptions = {
+                challenge: challenge,
+                allowCredentials: [{
+                    id: this.base64ToArrayBuffer(credentialId),
+                    type: 'public-key',
+                    transports: ['internal']
+                }],
+                userVerification: 'required',  // 要求用户验证（生物识别或PIN）
+                timeout: 60000
+            };
+
+            const assertion = await navigator.credentials.get({
+                publicKey: credentialRequestOptions
+            });
+
+            if (assertion) {
+                // 验证成功，记录认证时间
+                localStorage.setItem('last_webauthn_auth', Date.now().toString());
+                return { success: true };
+            } else {
+                return { success: false, error: '设备密钥验证失败' };
+            }
+
+        } catch (error) {
+            console.error('设备密钥认证错误:', error);
+            
+            // 处理特定错误
+            if (error.name === 'NotAllowedError') {
+                return { success: false, error: '用户取消了认证或认证超时，请重试' };
+            } else if (error.name === 'InvalidStateError') {
+                return { success: false, error: '设备密钥状态无效，正在重置...' };
+            } else if (error.name === 'NotSupportedError') {
+                return { success: false, error: '设备不支持此认证方式' };
+            } else if (error.name === 'SecurityError') {
+                return { success: false, error: '安全错误：请确保网站使用HTTPS协议' };
+            } else if (error.name === 'UnknownError') {
+                return { success: false, error: '认证器遇到未知错误，请重试' };
+            } else {
+                return { success: false, error: `认证失败: ${error.message}` };
+            }
+        }
+    }    // 注册WebAuthn凭据
+    async registerWebAuthnCredential(challenge) {
+        try {
+            const userId = new TextEncoder().encode('2fa-manager-user');
+            
+            const credentialCreationOptions = {
+                challenge: challenge,
+                rp: {
+                    name: '2FA验证码管家',
+                    id: window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname
+                },
+                user: {
+                    id: userId,
+                    name: '2FA验证码管家用户',
+                    displayName: '2FA验证码管家用户'
+                },
+                pubKeyCredParams: [
+                    { alg: -7, type: 'public-key' },   // ES256 (推荐)
+                    { alg: -257, type: 'public-key' }, // RS256 (备选)
+                    { alg: -37, type: 'public-key' }   // PS256 (备选)
+                ],
+                authenticatorSelection: {
+                    authenticatorAttachment: 'platform',  // 仅平台认证器（Windows Hello等）
+                    userVerification: 'required',         // 要求用户验证
+                    requireResidentKey: false,             // 不要求常驻密钥
+                    residentKey: 'discouraged'             // 不鼓励常驻密钥
+                },
+                timeout: 60000,
+                attestation: 'none'  // 不需要证明
+            };
+
+            const credential = await navigator.credentials.create({
+                publicKey: credentialCreationOptions
+            });
+
+            if (credential) {
+                const credentialId = this.arrayBufferToBase64(credential.rawId);
+                localStorage.setItem('webauthn_credential_id', credentialId);
+                localStorage.setItem('webauthn_registration_time', Date.now().toString());
+                
+                console.log('WebAuthn凭据注册成功');
+                return { 
+                    success: true, 
+                    credentialId: credentialId 
+                };
+            } else {
+                return { 
+                    success: false, 
+                    error: '无法创建设备密钥，请检查设备设置' 
+                };
+            }
+
+        } catch (error) {
+            console.error('注册WebAuthn凭据失败:', error);
+            
+            if (error.name === 'NotAllowedError') {
+                return { success: false, error: '用户拒绝了设备密钥注册，请重试' };
+            } else if (error.name === 'NotSupportedError') {
+                return { success: false, error: '设备不支持密钥注册功能' };
+            } else if (error.name === 'SecurityError') {
+                return { success: false, error: '安全错误：请确保网站使用HTTPS协议' };
+            } else if (error.name === 'InvalidStateError') {
+                return { success: false, error: '设备状态无效，请检查生物识别设置' };
+            } else {
+                return { success: false, error: `注册失败: ${error.message}` };
+            }
         }
     }
 
-    // 执行生物识别认证
-    async performBiometricAuth() {
-        return new Promise((resolve) => {
-            // 模拟异步认证过程
-            setTimeout(() => {
-                // 这里应该调用真实的生物识别API
-                resolve({ success: true });
-            }, 1500);
-        });
+    // Base64 和 ArrayBuffer 转换工具
+    arrayBufferToBase64(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+    }
+
+    base64ToArrayBuffer(base64) {
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes.buffer;
     }
 
     // 更新认证状态
@@ -254,6 +438,15 @@ class PopupManager {
         } else {
             statusIndicator?.classList.remove('authenticated');
             if (statusText) statusText.textContent = '未认证';
+        }
+    }
+
+    // 更新本地认证状态显示
+    updateLocalAuthStatus() {
+        // 如果已经认证且当前在本地标签页，自动显示本地验证码
+        if (this.authenticated && this.localAuthenticated && this.currentTab === 'local') {
+            this.showLocalCodes();
+            this.loadLocalCodes();
         }
     }
 
@@ -594,12 +787,20 @@ class PopupManager {
                 }
             }
         }
-    }
-
-    // 刷新本地验证码
+    }    // 刷新本地验证码
     async refreshLocalCodes() {
+        // 首先同步认证状态
+        if (this.authenticated && !this.localAuthenticated) {
+            this.localAuthenticated = true;
+        }
+        
         if (this.localAuthenticated) {
+            this.showLocalCodes();
             await this.loadLocalCodes();
+        } else {
+            // 显示认证界面
+            document.getElementById('localAuthSection').style.display = 'block';
+            document.getElementById('localCodes').style.display = 'none';
         }
     }
 
@@ -937,6 +1138,72 @@ class PopupManager {
         `;
         
         this.showModal('摄像头权限帮助', helpContent);
+    }    // 同步认证状态
+    async syncAuthenticationStates() {
+        // 以填充页面的认证状态为准
+        if (this.authenticated) {
+            this.localAuthenticated = true;
+        }
+        
+        // 检查WebAuthn凭据状态
+        const authInfo = await this.getAuthenticatorInfo();
+        if (authInfo.hasStoredCredential) {
+            console.log('检测到已存储的WebAuthn凭据');
+        }
+        
+        // 更新UI显示
+        this.updateAuthStatus();
+        this.updateLocalAuthStatus();
+    }// 重置认证状态（用于会话过期等情况）
+    resetAuthenticationStates() {
+        this.authenticated = false;
+        this.localAuthenticated = false;
+        this.updateAuthStatus();
+        // 清除会话存储
+        sessionStorage.removeItem('popup_auth_state');
+        // 重置页面显示
+        document.getElementById('authSection').style.display = 'block';
+        document.getElementById('fillSection').style.display = 'none';
+        document.getElementById('localAuthSection').style.display = 'block';
+        document.getElementById('localCodes').style.display = 'none';
+    }
+
+    // 保存认证状态到会话存储（临时存储）
+    saveAuthenticationState() {
+        const authData = {
+            authenticated: this.authenticated,
+            localAuthenticated: this.localAuthenticated,
+            timestamp: Date.now()
+        };
+        sessionStorage.setItem('popup_auth_state', JSON.stringify(authData));
+    }
+
+    // 从会话存储恢复认证状态
+    restoreAuthenticationState() {
+        try {
+            const authDataStr = sessionStorage.getItem('popup_auth_state');
+            if (authDataStr) {
+                const authData = JSON.parse(authDataStr);
+                const now = Date.now();
+                const maxAge = 5 * 60 * 1000; // 5分钟有效期
+                
+                if (now - authData.timestamp < maxAge) {
+                    this.authenticated = authData.authenticated || false;
+                    this.localAuthenticated = authData.localAuthenticated || false;
+                    
+                    // 更新UI
+                    if (this.authenticated) {
+                        this.updateAuthStatus();
+                        this.showFillSection();
+                    }
+                    
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.error('恢复认证状态失败:', error);
+        }
+        return false;
     }
 
     // 存储操作
@@ -993,95 +1260,150 @@ class PopupManager {
                         console.log(`   解密结果:`, result.success);
                         if (result.success) {
                             console.log(`   配置名称:`, result.config.name);
-                            console.log(`   密钥存在:`, !!result.config.secret);
-                            console.log(`   密钥长度:`, result.config.secret?.length || 0);
-                            console.log(`   密钥前8位:`, result.config.secret?.substring(0, 8));
                         } else {
-                            console.log(`   解密错误:`, result.message);
+                            console.error(`   解密失败:`, result.message);
                         }
-                    } catch (error) {
-                        console.error(`   解密异常:`, error);
+                    } catch (decryptError) {
+                        console.error(`   解密错误:`, decryptError);
                     }
                 }
             } else {
-                console.log('3. 没有找到本地配置列表');
+                console.warn('本地配置列表为空或不存在');
             }
             
-            // 5. 检查当前加载的配置
-            console.log('5. 当前加载的配置数量:', this.localCodes.length);
-            this.localCodes.forEach((config, index) => {
-                console.log(`   配置${index + 1}:`, {
-                    name: config.name,
-                    hasSecret: !!config.secret,
-                    secretLength: config.secret?.length || 0
-                });
-            });
-            
+            this.showMessage('诊断完成', 'success');
         } catch (error) {
-            console.error('诊断过程出错:', error);
+            console.error('诊断本地验证码问题时出错:', error);
+            this.showMessage('诊断失败: ' + error.message, 'error');
         }
+    }
+
+    // 处理接收到的消息
+    async handleMessage(message) {
+        console.log('接收到消息:', message);
         
-        console.log('=== 诊断完成 ===');
+        if (message.type === 'authStatus') {
+            this.authenticated = message.authenticated;
+            this.localAuthenticated = message.localAuthenticated;
+            
+            this.updateAuthStatus();
+            this.updateLocalAuthStatus();
+        } else if (message.type === 'configUpdate') {
+            // 配置更新通知
+            if (this.currentTab === 'local') {
+                this.loadLocalCodes();
+            } else {
+                this.checkSavedConfig();
+            }
+        } else if (message.type === 'webdavStatus') {
+            // WebDAV 状态更新
+            if (message.status === 'connected') {
+                this.showMessage('已连接到云端', 'success');
+            } else {
+                this.showMessage('云端连接已断开', 'warning');
+            }
+        }
+    }
+
+    // 初始化背景脚本消息监听
+    initBackgroundMessageListener() {
+        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            this.handleMessage(message);
+        });
+    }
+
+    // 检查设备密钥认证支持情况
+    async checkWebAuthnSupport() {
+        try {
+            if (!window.PublicKeyCredential) {
+                console.warn('浏览器不支持WebAuthn');
+                return false;
+            }
+
+            const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+            if (!available) {
+                console.warn('设备不支持平台认证器');
+                return false;
+            }
+
+            console.log('设备支持WebAuthn平台认证器');
+            return true;
+        } catch (error) {
+            console.error('检查WebAuthn支持时出错:', error);
+            return false;
+        }
+    }
+
+    // 更新认证按钮状态
+    updateAuthButtonStates() {
+        const authBtn = document.getElementById('authBtn');
+        const localAuthBtn = document.getElementById('localAuthBtn');
+        
+        if (authBtn && localAuthBtn) {
+            // 如果设备不支持WebAuthn，显示提示
+            this.checkWebAuthnSupport().then(supported => {
+                if (!supported) {
+                    const warningText = '设备不支持生物识别认证';
+                    if (authBtn) {
+                        authBtn.title = warningText;
+                        authBtn.style.opacity = '0.6';
+                    }
+                    if (localAuthBtn) {
+                        localAuthBtn.title = warningText;
+                        localAuthBtn.style.opacity = '0.6';
+                    }
+                }
+            });
+        }
+    }
+
+    // 重置WebAuthn凭据
+    resetWebAuthnCredentials() {
+        localStorage.removeItem('webauthn_credential_id');
+        console.log('WebAuthn凭据已重置');
+        this.showMessage('设备密钥已重置，下次验证时将重新注册', 'info');
+    }
+
+    // 获取设备认证器信息
+    async getAuthenticatorInfo() {
+        try {
+            if (!window.PublicKeyCredential) {
+                return { supported: false, reason: '浏览器不支持WebAuthn' };
+            }
+
+            const platformSupport = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+            
+            // 检查条件式中介支持
+            let conditionalSupport = false;
+            if (PublicKeyCredential.isConditionalMediationAvailable) {
+                conditionalSupport = await PublicKeyCredential.isConditionalMediationAvailable();
+            }
+
+            return {
+                supported: platformSupport,
+                platformAuthenticator: platformSupport,
+                conditionalMediation: conditionalSupport,
+                hasStoredCredential: !!localStorage.getItem('webauthn_credential_id')
+            };
+
+        } catch (error) {
+            console.error('获取认证器信息失败:', error);
+            return { supported: false, reason: error.message };
+        }
     }
 }
 
-// 消息样式
-const messageStyles = document.createElement('style');
-messageStyles.textContent = `
-    .message {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 16px;
-        border-radius: 6px;
-        color: white;
-        font-size: 13px;
-        font-weight: 500;
-        z-index: 2000;
-        animation: slideIn 0.3s ease;
-        max-width: 300px;
-    }
-    
-    .message-success { background: #10b981; }
-    .message-error { background: #ef4444; }
-    .message-warning { background: #f59e0b; }
-    .message-info { background: #3b82f6; }
-    
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-`;
-document.head.appendChild(messageStyles);
-
-// 全局变量导出（用于Service Worker环境）
-if (typeof globalThis !== 'undefined') {
-    globalThis.PopupManager = PopupManager;
-} else if (typeof window !== 'undefined') {
-    window.PopupManager = PopupManager;
-} else if (typeof self !== 'undefined') {
-    self.PopupManager = PopupManager;
-}
-
-// ES6模块导出
+// 创建PopupManager实例
 const popupManager = new PopupManager();
 
-// 页面卸载时清理资源
-window.addEventListener('beforeunload', () => {
-    popupManager.cleanup();
-});
-
-// 全局变量导出 - 支持多种环境
-(() => {
-    const globalScope = (() => {
-        if (typeof globalThis !== 'undefined') return globalThis;
-        if (typeof window !== 'undefined') return window;
-        if (typeof self !== 'undefined') return self;
-        if (typeof global !== 'undefined') return global;
-        return {};
-    })();
-    
-    globalScope.GlobalScope = globalScope.GlobalScope || {};
-    globalScope.GlobalScope.PopupManager = PopupManager;
-    globalScope.GlobalScope.popupManager = popupManager;
+const globalScope = (() => {
+    if (typeof globalThis !== 'undefined') return globalThis;
+    if (typeof window !== 'undefined') return window;
+    if (typeof self !== 'undefined') return self;
+    if (typeof global !== 'undefined') return global;
+    return {};
 })();
+    
+globalScope.GlobalScope = globalScope.GlobalScope || {};
+globalScope.GlobalScope.PopupManager = PopupManager;
+globalScope.GlobalScope.popupManager = popupManager;

@@ -1,12 +1,114 @@
 /* 2FA验证码管家弹出页样式 */
 @import url('common.css');
 
+/* CSS 变量定义 - 支持深色模式 */
+:root {
+    /* 主色调 */
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --primary-color: #667eea;
+    
+    /* 浅色模式颜色 */
+    --popup-bg-primary: #ffffff;
+    --popup-bg-secondary: #f8f9fa;
+    --popup-bg-tertiary: #f1f5f9;
+    --popup-bg-accent: #fafbfc;
+    
+    --popup-text-primary: #1e293b;
+    --popup-text-secondary: #475569;
+    --popup-text-tertiary: #64748b;
+    --popup-text-muted: #94a3b8;
+    
+    --popup-border-primary: #e1e8ed;
+    --popup-border-secondary: #e2e8f0;
+    --popup-border-focus: #667eea;
+    
+    --popup-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+    --popup-shadow-md: 0 4px 15px rgba(0, 0, 0, 0.1);
+    --popup-shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.15);
+    
+    /* 状态颜色 */
+    --popup-success-color: #10b981;
+    --popup-error-color: #ef4444;
+    --popup-warning-color: #f59e0b;
+    --popup-info-color: #3b82f6;
+}
+
+/* 深色模式变量 */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --popup-bg-primary: #1e293b;
+        --popup-bg-secondary: #0f172a;
+        --popup-bg-tertiary: #334155;
+        --popup-bg-accent: #1e293b;
+        
+        --popup-text-primary: #f8fafc;
+        --popup-text-secondary: #e2e8f0;
+        --popup-text-tertiary: #cbd5e1;
+        --popup-text-muted: #94a3b8;
+        
+        --popup-border-primary: #334155;
+        --popup-border-secondary: #475569;
+        --popup-border-focus: #7c3aed;
+        
+        --popup-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+        --popup-shadow-md: 0 4px 15px rgba(0, 0, 0, 0.4);
+        --popup-shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.6);
+    }
+}
+
+/* 强制深色模式类 */
+.dark-mode {
+    --popup-bg-primary: #1e293b;
+    --popup-bg-secondary: #0f172a;
+    --popup-bg-tertiary: #334155;
+    --popup-bg-accent: #1e293b;
+    
+    --popup-text-primary: #f8fafc;
+    --popup-text-secondary: #e2e8f0;
+    --popup-text-tertiary: #cbd5e1;
+    --popup-text-muted: #94a3b8;
+    
+    --popup-border-primary: #334155;
+    --popup-border-secondary: #475569;
+    --popup-border-focus: #7c3aed;
+    
+    --popup-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --popup-shadow-md: 0 4px 15px rgba(0, 0, 0, 0.4);
+    --popup-shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+/* 强制浅色模式类 */
+.light-mode {
+    --popup-bg-primary: #ffffff;
+    --popup-bg-secondary: #f8f9fa;
+    --popup-bg-tertiary: #f1f5f9;
+    --popup-bg-accent: #fafbfc;
+    
+    --popup-text-primary: #1e293b;
+    --popup-text-secondary: #475569;
+    --popup-text-tertiary: #64748b;
+    --popup-text-muted: #94a3b8;
+    
+    --popup-border-primary: #e1e8ed;
+    --popup-border-secondary: #e2e8f0;
+    --popup-border-focus: #667eea;
+    
+    --popup-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+    --popup-shadow-md: 0 4px 15px rgba(0, 0, 0, 0.1);
+    --popup-shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* 平滑过渡 */
+* {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif;
     font-size: 14px;
     line-height: 1.5;
-    color: #2c3e50;
-    background: #f8f9fa;
+    color: var(--popup-text-primary);
+    background: var(--popup-bg-secondary);
     width: 380px;
     height: 520px;
     overflow: hidden;
@@ -15,18 +117,18 @@ body {
 .popup-container {
     width: 100%;
     height: 100%;
-    background: white;
+    background: var(--popup-bg-primary);
     display: flex;
     flex-direction: column;
     border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--popup-shadow-lg);
 }
 
 /* 标签页导航 */
 .popup-tabs {
     display: flex;
-    background: #ffffff;
-    border-bottom: 2px solid #e1e8ed;
+    background: var(--popup-bg-primary);
+    border-bottom: 2px solid var(--popup-border-primary);
     padding: 8px;
     gap: 2px;
 }
@@ -41,7 +143,7 @@ body {
     border: none;
     border-radius: 8px;
     background: transparent;
-    color: #64748b;
+    color: var(--popup-text-tertiary);
     cursor: pointer;
     transition: all 0.3s ease;
     font-size: 11px;
@@ -49,13 +151,13 @@ body {
 }
 
 .popup-tab-btn:hover {
-    background: #f1f5f9;
-    color: #334155;
+    background: var(--popup-bg-tertiary);
+    color: var(--popup-text-secondary);
     transform: translateY(-1px);
 }
 
 .popup-tab-btn.active {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary-gradient);
     color: white;
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
@@ -104,14 +206,14 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px 12px;
-    border-bottom: 1px solid #e1e8ed;
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid var(--popup-border-primary);
+    background: var(--popup-bg-tertiary);
 }
 
 .tab-header h3 {
     font-size: 16px;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--popup-text-primary);
 }
 
 .auth-status {
@@ -142,15 +244,15 @@ body {
     padding: 6px 8px;
     border: none;
     border-radius: 6px;
-    background: #f1f5f9;
-    color: #64748b;
+    background: var(--popup-bg-tertiary);
+    color: var(--popup-text-tertiary);
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: 14px;
 }
 
 .refresh-btn:hover {
-    background: #e2e8f0;
+    background: var(--popup-border-secondary);
     transform: rotate(180deg);
 }
 
@@ -177,7 +279,7 @@ body {
 }
 
 .auth-prompt p {
-    color: #64748b;
+    color: var(--popup-text-tertiary);
     font-size: 13px;
     line-height: 1.5;
 }
@@ -210,8 +312,8 @@ body {
 }
 
 .current-site {
-    background: #f8fafc;
-    border: 2px dashed #cbd5e1;
+    background: var(--popup-bg-tertiary);
+    border: 2px dashed var(--popup-border-secondary);
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 20px;
@@ -219,8 +321,8 @@ body {
 }
 
 .current-site.active {
-    border-color: #667eea;
-    background: linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 100%);
+    border-color: var(--popup-border-focus);
+    background: var(--popup-bg-accent);
 }
 
 .site-info {
@@ -235,13 +337,13 @@ body {
 
 .site-name {
     font-weight: 600;
-    color: #1e293b;
+    color: var(--popup-text-primary);
     font-size: 14px;
 }
 
 .site-url {
     font-size: 12px;
-    color: #64748b;
+    color: var(--popup-text-tertiary);
     word-break: break-all;
 }
 
@@ -278,14 +380,14 @@ body {
 }
 
 .secondary-btn {
-    background: #f1f5f9;
-    color: #475569;
-    border: 1px solid #e2e8f0;
+    background: var(--popup-bg-tertiary);
+    color: var(--popup-text-secondary);
+    border: 1px solid var(--popup-border-secondary);
 }
 
 .secondary-btn:hover:not(:disabled) {
-    background: #e2e8f0;
-    border-color: #cbd5e1;
+    background: var(--popup-border-secondary);
+    border-color: var(--popup-border-primary);
 }
 
 .primary-btn:disabled, .secondary-btn:disabled {
@@ -295,10 +397,10 @@ body {
 
 /* 配置列表 */
 .config-list {
-    background: white;
-    border: 1px solid #e1e8ed;
+    background: var(--popup-bg-primary);
+    border: 1px solid var(--popup-border-primary);
     border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--popup-shadow-md);
 }
 
 .list-header {
@@ -306,15 +408,15 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid #e1e8ed;
-    background: #f8fafc;
+    border-bottom: 1px solid var(--popup-border-primary);
+    background: var(--popup-bg-tertiary);
     border-radius: 12px 12px 0 0;
 }
 
 .list-header h4 {
     font-size: 14px;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--popup-text-primary);
 }
 
 .close-btn {
@@ -421,8 +523,8 @@ body {
 }
 
 .code-item {
-    background: white;
-    border: 1px solid #e1e8ed;
+    background: var(--popup-bg-primary);
+    border: 1px solid var(--popup-border-primary);
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 12px;
@@ -430,7 +532,7 @@ body {
 }
 
 .code-item:hover {
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--popup-shadow-md);
     transform: translateY(-1px);
 }
 
@@ -443,7 +545,7 @@ body {
 
 .code-name {
     font-weight: 600;
-    color: #1e293b;
+    color: var(--popup-text-primary);
 }
 
 .code-timer {
@@ -509,15 +611,15 @@ body {
     align-items: center;
     gap: 16px;
     padding: 16px;
-    border: 2px solid #e1e8ed;
+    border: 2px solid var(--popup-border-primary);
     border-radius: 12px;
-    background: white;
+    background: var(--popup-bg-primary);
     cursor: pointer;
     transition: all 0.3s ease;
 }
 
 .scan-btn:hover {
-    border-color: #667eea;
+    border-color: var(--popup-border-focus);
     box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
     transform: translateY(-1px);
 }
@@ -532,7 +634,7 @@ body {
 
 .scan-title {
     font-weight: 600;
-    color: #1e293b;
+    color: var(--popup-text-primary);
     margin-bottom: 4px;
 }
 
@@ -630,8 +732,8 @@ body {
 }
 
 .result-content {
-    background: white;
-    border: 1px solid #e1e8ed;
+    background: var(--popup-bg-primary);
+    border: 1px solid var(--popup-border-primary);
     border-radius: 12px;
     padding: 16px;
 }
@@ -639,11 +741,12 @@ body {
 .qr-info {
     margin-bottom: 16px;
     padding: 12px;
-    background: #f8fafc;
+    background: var(--popup-bg-tertiary);
     border-radius: 8px;
     font-family: monospace;
     font-size: 12px;
     word-break: break-all;
+    color: var(--popup-text-secondary);
 }
 
 .save-options {
@@ -654,8 +757,10 @@ body {
 .config-input {
     flex: 1;
     padding: 10px 12px;
-    border: 1px solid #e1e8ed;
+    border: 1px solid var(--popup-border-primary);
     border-radius: 6px;
+    background: var(--popup-bg-accent);
+    color: var(--popup-text-primary);
     font-size: 13px;
 }
 
@@ -673,8 +778,8 @@ body {
 /* 设置快捷方式 */
 .settings-shortcut {
     padding: 20px;
-    border-top: 1px solid #e1e8ed;
-    background: #f8fafc;
+    border-top: 1px solid var(--popup-border-primary);
+    background: var(--popup-bg-tertiary);
 }
 
 .settings-btn {
@@ -684,10 +789,10 @@ body {
     justify-content: center;
     gap: 8px;
     padding: 12px 16px;
-    border: 1px solid #e1e8ed;
+    border: 1px solid var(--popup-border-primary);
     border-radius: 8px;
-    background: white;
-    color: #475569;
+    background: var(--popup-bg-primary);
+    color: var(--popup-text-secondary);
     cursor: pointer;
     transition: all 0.3s ease;
     font-size: 13px;
@@ -695,8 +800,8 @@ body {
 }
 
 .settings-btn:hover {
-    border-color: #667eea;
-    color: #667eea;
+    border-color: var(--popup-border-focus);
+    color: var(--popup-border-focus);
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
 }
 
@@ -704,7 +809,7 @@ body {
 .empty-state {
     text-align: center;
     padding: 40px 20px;
-    color: #64748b;
+    color: var(--popup-text-tertiary);
 }
 
 .empty-icon {
@@ -898,4 +1003,97 @@ body {
 .help-actions .secondary-btn:hover {
     background: #e5e7eb;
     transform: translateY(-1px);
+}
+
+/* 深色模式额外优化 */
+.dark-mode .popup-tab-btn:hover {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.dark-mode .code-item {
+    background: var(--popup-bg-accent);
+    border-color: var(--popup-border-secondary);
+}
+
+.dark-mode .scan-btn {
+    background: var(--popup-bg-accent);
+    border-color: var(--popup-border-secondary);
+}
+
+.dark-mode .current-site {
+    background: rgba(51, 65, 85, 0.5);
+    border-color: var(--popup-border-secondary);
+}
+
+.dark-mode .current-site.active {
+    background: rgba(102, 126, 234, 0.1);
+    border-color: var(--popup-border-focus);
+}
+
+.dark-mode .tab-header {
+    background: var(--popup-bg-accent);
+    border-color: var(--popup-border-secondary);
+}
+
+/* 深色模式下的按钮优化 */
+.dark-mode .primary-btn {
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.dark-mode .secondary-btn {
+    background: var(--popup-bg-accent);
+    border-color: var(--popup-border-secondary);
+    color: var(--popup-text-secondary);
+}
+
+.dark-mode .settings-shortcut {
+    background: var(--popup-bg-accent);
+    border-color: var(--popup-border-secondary);
+}
+
+/* 媒体查询深色模式优化 */
+@media (prefers-color-scheme: dark) {
+    .popup-tab-btn:hover {
+        background: rgba(102, 126, 234, 0.1);
+    }
+    
+    .code-item {
+        background: var(--popup-bg-accent);
+        border-color: var(--popup-border-secondary);
+    }
+    
+    .scan-btn {
+        background: var(--popup-bg-accent);
+        border-color: var(--popup-border-secondary);
+    }
+    
+    .current-site {
+        background: rgba(51, 65, 85, 0.5);
+        border-color: var(--popup-border-secondary);
+    }
+    
+    .current-site.active {
+        background: rgba(102, 126, 234, 0.1);
+        border-color: var(--popup-border-focus);
+    }
+    
+    .tab-header {
+        background: var(--popup-bg-accent);
+        border-color: var(--popup-border-secondary);
+    }
+    
+    .primary-btn {
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .secondary-btn {
+        background: var(--popup-bg-accent);
+        border-color: var(--popup-border-secondary);
+        color: var(--popup-text-secondary);
+    }
+    
+    .settings-shortcut {
+        background: var(--popup-bg-accent);
+        border-color: var(--popup-border-secondary);
+    }
 }

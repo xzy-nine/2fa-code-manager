@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">    
     <title>2FA验证码管家</title>    
-    <link rel="stylesheet" href="../css/popup.css">    <!-- jsQR二维码解析库 - 本地版本 -->
+    <link rel="stylesheet" href="../css/popup.css"> 
     <script src="js/lib/jsQR.js"></script>
 </head>
 <body>
@@ -40,10 +40,10 @@
                 <div class="auth-section" id="authSection">
                     <div class="auth-prompt">
                         <div class="auth-icon">🔐</div>
-                        <p>请进行身份验证后使用云端验证码</p>
-                        <button id="authBtn" class="auth-btn">
+                        <p>请使用设备密钥验证后访问云端验证码</p>                        
+                            <button id="authBtn" class="auth-btn">
                             <span>🔑</span>
-                            <span>生物识别验证</span>
+                            <span>设备密钥解锁</span>
                         </button>
                     </div>
                 </div>
@@ -90,10 +90,10 @@
                 <div class="local-auth-section" id="localAuthSection">
                     <div class="auth-prompt">
                         <div class="auth-icon">🔒</div>
-                        <p>请验证身份后查看本地验证码</p>
-                        <button id="localAuthBtn" class="auth-btn">
+                        <p>请使用设备密钥验证后查看</p>                        
+                            <button id="localAuthBtn" class="auth-btn">
                             <span>🔑</span>
-                            <span>解锁本地验证码</span>
+                            <span>设备密钥解锁</span>
                         </button>
                     </div>
                 </div>
@@ -166,9 +166,10 @@
                 </div>
             </div>
         </div>
-    </div>    <!-- 模态框现在由Menu系统动态创建 --><!-- 按依赖顺序加载模块 -->
+    </div>    
     <!-- 首先加载crypto.js以初始化GlobalScope -->
     <script src="./js/crypto.js"></script>
+    <script src="./js/theme.js"></script>
     <!-- 然后加载core模块 -->
     <script src="./js/core/utils.js"></script>
     <script src="./js/core/menu.js"></script>

@@ -29,13 +29,48 @@ class SettingManager {
         } else {
             this.initApp();
         }
-    }
-
-    initApp() {
+    }    initApp() {
         this.renderPage();
         this.initElements();
         this.initEventListeners();
         this.loadSettings();
+        this.initTheme(); // 初始化主题
+        this.initScrollProgress(); // 初始化滚动进度
+        this.initAnimations(); // 初始化动画
+    }
+
+    // 初始化滚动进度指示器
+    initScrollProgress() {
+        const settingsContent = document.querySelector('.settings-content');
+        if (!settingsContent) return;
+
+        const updateScrollProgress = () => {
+            const scrollTop = settingsContent.scrollTop;
+            const scrollHeight = settingsContent.scrollHeight - settingsContent.clientHeight;
+            const scrollProgress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+            
+            document.documentElement.style.setProperty('--scroll-progress', `${scrollProgress}%`);
+        };
+
+        settingsContent.addEventListener('scroll', updateScrollProgress);
+        updateScrollProgress(); // 初始化
+    }
+
+    // 初始化动画
+    initAnimations() {
+        // 为设置分组添加延迟动画
+        const sections = document.querySelectorAll('.settings-section');
+        sections.forEach((section, index) => {
+            section.style.animationDelay = `${index * 0.1}s`;
+        });
+
+        // 监听主题变化，添加过渡效果
+        document.addEventListener('themeChanged', () => {
+            document.body.classList.add('theme-transition');
+            setTimeout(() => {
+                document.body.classList.remove('theme-transition');
+            }, 500);
+        });
     }
 
     // 动态渲染页面内容
@@ -48,8 +83,8 @@ class SettingManager {
                 <h1>设置</h1>
                 <button id="backButton" class="back-button">返回</button>
             </header>
-            
-            <main class="settings-content">
+              <main class="settings-content">
+                ${this.renderThemeSection()}
                 ${this.renderWebDAVSection()}
                 ${this.renderEncryptionSection()}
                 ${this.renderLocalStorageSection()}
@@ -205,20 +240,47 @@ class SettingManager {
         `;
     }
 
+    // 渲染主题设置区域
+    renderThemeSection() {
+        return `
+            <section class="settings-section">
+                <h2>主题设置</h2>
+                <div class="form-group">
+                    <label for="themeSelect">选择主题</label>
+                    <select id="themeSelect">
+                        <option value="auto">跟随系统</option>
+                        <option value="light">浅色模式</option>
+                        <option value="dark">深色模式</option>
+                    </select>
+                    <small>选择您偏好的主题模式，"跟随系统"将根据系统设置自动切换</small>
+                </div>
+                <button id="saveTheme" class="btn btn-primary">保存主题设置</button>
+            </section>
+        `;
+    }
+
     initElements() {
         // 获取所有DOM元素        
         this.elements = {
             backButton: document.getElementById('backButton'),
+            // 主题设置
+            themeSelect: document.getElementById('themeSelect'),
+            saveThemeButton: document.getElementById('saveTheme'),
+            // WebDAV设置
             testWebdavButton: document.getElementById('testWebdav'),
             saveWebdavButton: document.getElementById('saveWebdav'),
+            // 加密设置
             saveEncryptionButton: document.getElementById('saveEncryption'),
+            // 本地存储设置
             saveLocalStorageButton: document.getElementById('saveLocalStorage'),
+            // 配置管理
             addConfigButton: document.getElementById('addConfig'),
             exportConfigsButton: document.getElementById('exportConfigs'),
             importConfigsButton: document.getElementById('importConfigs'),
             backupToCloudButton: document.getElementById('backupToCloud'),
             restoreFromCloudButton: document.getElementById('restoreFromCloud'),
             validateConfigsButton: document.getElementById('validateConfigs'),
+            // 添加配置模态框
             addConfigModal: document.getElementById('addConfigModal'),
             closeModal: document.querySelector('.close'),
             saveConfigButton: document.getElementById('saveConfig'),
@@ -231,6 +293,10 @@ class SettingManager {
         this.elements.backButton?.addEventListener('click', () => {
             window.close();
         });
+
+        // 主题设置
+        this.elements.saveThemeButton?.addEventListener('click', () => this.saveThemeSettings());
+        this.elements.themeSelect?.addEventListener('change', () => this.applyTheme());
 
         // 测试WebDAV连接
         this.elements.testWebdavButton?.addEventListener('click', () => this.testWebDAVConnection());
@@ -334,6 +400,108 @@ class SettingManager {
             this.showMessage('本地存储设置已保存', 'success');
         } catch (error) {
             this.showMessage('保存失败: ' + error.message, 'error');
+        }
+    }    // 主题设置功能
+    async saveThemeSettings() {
+        const theme = document.getElementById('themeSelect')?.value;
+        const saveButton = document.getElementById('saveTheme');
+        
+        try {
+            // 使用全局主题管理器
+            if (window.themeManager) {
+                await window.themeManager.saveTheme(theme || 'auto');
+                this.showMessage('主题设置已保存', 'success');
+                this.showSuccessAnimation(saveButton);
+            } else {
+                // 回退到原来的方法
+                await chrome.storage.local.set({
+                    themeConfig: {
+                        theme: theme || 'auto'
+                    }
+                });
+                this.showMessage('主题设置已保存', 'success');
+                this.showSuccessAnimation(saveButton);
+                this.applyTheme();
+            }
+        } catch (error) {
+            this.showMessage('保存失败: ' + error.message, 'error');
+            this.showErrorAnimation(saveButton);
+        }
+    }
+
+    applyTheme() {
+        if (window.themeManager) {
+            // 使用全局主题管理器
+            const themeSelect = document.getElementById('themeSelect');
+            const selectedTheme = themeSelect?.value || 'auto';
+            window.themeManager.saveTheme(selectedTheme);
+        } else {
+            // 回退到原来的方法
+            const themeSelect = document.getElementById('themeSelect');
+            const selectedTheme = themeSelect?.value || 'auto';
+            const body = document.body;
+            
+            // 移除所有主题类
+            body.classList.remove('dark-mode', 'light-mode');
+            
+            switch (selectedTheme) {
+                case 'dark':
+                    body.classList.add('dark-mode');
+                    break;
+                case 'light':
+                    body.classList.add('light-mode');
+                    break;
+                case 'auto':
+                default:
+                    // 跟随系统设置，不添加额外类，依赖CSS媒体查询
+                    break;
+            }
+            
+            // 保存当前主题到localStorage以便其他页面使用
+            try {
+                localStorage.setItem('theme-preference', selectedTheme);
+            } catch (error) {
+                console.warn('无法保存主题偏好到localStorage:', error);
+            }
+        }
+    }
+
+    async initTheme() {
+        try {
+            if (window.themeManager) {
+                // 使用全局主题管理器
+                const currentTheme = window.themeManager.getCurrentTheme();
+                const themeSelect = document.getElementById('themeSelect');
+                if (themeSelect) {
+                    themeSelect.value = currentTheme;
+                }
+            } else {
+                // 回退到原来的方法
+                const result = await chrome.storage.local.get(['themeConfig']);
+                const savedTheme = result.themeConfig?.theme || 'auto';
+                
+                // 设置选择框的值
+                const themeSelect = document.getElementById('themeSelect');
+                if (themeSelect) {
+                    themeSelect.value = savedTheme;
+                }
+                
+                // 应用主题
+                this.applyTheme();
+            }
+        } catch (error) {
+            console.warn('无法加载主题设置:', error);
+            // 尝试从localStorage获取
+            try {
+                const localTheme = localStorage.getItem('theme-preference') || 'auto';
+                const themeSelect = document.getElementById('themeSelect');
+                if (themeSelect) {
+                    themeSelect.value = localTheme;
+                }
+                this.applyTheme();
+            } catch (localError) {
+                console.warn('无法从localStorage加载主题设置:', localError);
+            }
         }
     }
 
