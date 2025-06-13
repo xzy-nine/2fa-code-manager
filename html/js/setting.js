@@ -1,14 +1,12 @@
 // 设置页面的JavaScript代码 - ES6模块版本
-import { CryptoManager } from './crypto.js';
-import { WebDAVClient } from './webdav.js';
-import { LocalStorageManager } from './local-storage.js';
+import { Crypto, WebDAV, Storage, Utils } from './main.js';
 
 // 设置管理器类
 export class SettingManager {
     constructor() {
-        this.localStorageManager = new LocalStorageManager();
-        this.cryptoManager = new CryptoManager();
-        this.webdavClient = new WebDAVClient();
+        this.localStorageManager = new Storage();
+        this.cryptoManager = new Crypto();
+        this.webdavClient = new WebDAV();
         this.init();
     }
 

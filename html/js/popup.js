@@ -1,9 +1,5 @@
 // 弹出页面主脚本
-import { CryptoManager } from './crypto.js';
-import { TOTPGenerator } from './totp.js';
-import { WebDAVClient } from './webdav.js';
-import { LocalStorageManager } from './local-storage.js';
-import { QRScanner } from './qr-scanner.js';
+import { Crypto, TOTP, WebDAV, Storage, QRCode, Utils } from './main.js';
 
 export class PopupManager {constructor() {
         this.currentTab = 'fill';
@@ -11,8 +7,8 @@ export class PopupManager {constructor() {
         this.localAuthenticated = false;
         this.webdavClient = null;
         this.qrScanner = null;
-        this.totpGenerator = new TOTPGenerator();
-        this.localStorageManager = new LocalStorageManager();
+        this.totpGenerator = new TOTP();
+        this.localStorageManager = new Storage();
         this.currentSiteInfo = null;
         this.localCodes = [];
         this.updateInterval = null;
@@ -514,10 +510,9 @@ export class PopupManager {constructor() {
     // 开始摄像头扫描
     async startCameraScanning() {
         const videoElement = document.getElementById('cameraVideo');
-        const canvasElement = document.getElementById('scanCanvas');
-        
+        const canvasElement = document.getElementById('scanCanvas');        
         if (!this.qrScanner) {
-            this.qrScanner = new QRScanner();
+            this.qrScanner = new QRCode();
         }
 
         const result = await this.qrScanner.initCamera(videoElement, canvasElement);
@@ -536,9 +531,8 @@ export class PopupManager {constructor() {
     }
 
     // 开始屏幕扫描
-    async startScreenScanning() {
-        if (!this.qrScanner) {
-            this.qrScanner = new QRScanner();
+    async startScreenScanning() {        if (!this.qrScanner) {
+            this.qrScanner = new QRCode();
         }
 
         const result = await this.qrScanner.scanScreen();
@@ -693,7 +687,7 @@ export class PopupManager {constructor() {
     // 初始化WebDAV客户端
     async initWebDAVClient(config) {
         try {
-            this.webdavClient = new WebDAVClient(config);
+            this.webdavClient = new WebDAV(config);
             const testResult = await this.webdavClient.test();
             if (!testResult.success) {
                 console.warn('WebDAV连接测试失败:', testResult.error);
