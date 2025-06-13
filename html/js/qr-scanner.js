@@ -7,32 +7,90 @@ class QRScanner {
         this.stream = null;
         this.scanning = false;
         this.scanInterval = null;
-    }
-
-    // 初始化摄像头
+    }    // 初始化摄像头
     async initCamera(videoElement, canvasElement) {
         this.video = videoElement;
         this.canvas = canvasElement;
         this.context = this.canvas.getContext('2d');
 
         try {
-            this.stream = await navigator.mediaDevices.getUserMedia({
+            // 检查浏览器是否支持媒体设备
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error('浏览器不支持摄像头访问');
+            }
+
+            // 首先尝试基本的视频约束
+            let constraints = {
                 video: {
-                    facingMode: 'environment', // 优先使用后置摄像头
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
+                    width: { ideal: 640, max: 1280 },
+                    height: { ideal: 480, max: 720 },
+                    facingMode: 'environment' // 优先使用后置摄像头
                 }
-            });
+            };
+
+            try {
+                this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (constraintError) {
+                console.warn('使用完整约束失败，尝试简化约束:', constraintError);
+                // 如果完整约束失败，尝试简化的约束
+                constraints = {
+                    video: true
+                };
+                this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+            }
 
             this.video.srcObject = this.stream;
-            return { success: true };
+            
+            // 等待视频加载
+            return new Promise((resolve) => {
+                this.video.addEventListener('loadedmetadata', () => {
+                    resolve({ success: true });
+                }, { once: true });
+                
+                // 设置超时
+                setTimeout(() => {
+                    resolve({ success: false, message: '视频加载超时' });
+                }, 5000);
+            });
+            
         } catch (error) {
             console.error('摄像头初始化失败:', error);
+            
+            let message = '未知错误';
+            
+            switch (error.name) {
+                case 'NotAllowedError':
+                    message = '请允许访问摄像头权限';
+                    break;
+                case 'NotFoundError':
+                    message = '未找到摄像头设备';
+                    break;
+                case 'NotReadableError':
+                    message = '摄像头被其他应用占用';
+                    break;
+                case 'OverconstrainedError':
+                    message = '摄像头不支持请求的配置，请尝试不同的设备';
+                    break;
+                case 'SecurityError':
+                    message = '安全限制：扩展popup页面可能无法访问摄像头';
+                    break;
+                case 'TypeError':
+                    message = '浏览器不支持摄像头访问';
+                    break;                default:
+                    message = `摄像头错误: ${error.message || error.toString()}`;
+                    // 添加更详细的错误信息用于调试
+                    console.error('详细错误信息:', {
+                        name: error.name,
+                        message: error.message,
+                        stack: error.stack,
+                        constraint: error.constraint
+                    });
+            }
+            
             return { 
                 success: false, 
-                message: error.name === 'NotAllowedError' ? 
-                    '请允许访问摄像头' : 
-                    `摄像头错误: ${error.message}` 
+                message: message,
+                error: error
             };
         }
     }
@@ -64,9 +122,7 @@ class QRScanner {
         if (this.video) {
             this.video.srcObject = null;
         }
-    }
-
-    // 检测二维码
+    }    // 检测二维码
     async detectQRCode(onDetected) {
         if (!this.video || !this.canvas || !this.context) return;
 
@@ -81,8 +137,8 @@ class QRScanner {
             // 获取图像数据
             const imageData = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
             
-            // 使用简单的二维码检测算法
-            const qrData = this.simpleQRDetection(imageData);
+            // 使用jsQR库进行二维码检测
+            const qrData = this.decodeQRCode(imageData);
             
             if (qrData) {
                 onDetected(qrData);
@@ -90,78 +146,30 @@ class QRScanner {
         } catch (error) {
             console.error('二维码检测失败:', error);
         }
-    }
-
-    // 简单的二维码检测算法
-    simpleQRDetection(imageData) {
-        // 这里实现一个简化的二维码检测
-        // 在实际项目中，建议使用成熟的库如jsQR
-        
-        // 转换为灰度图
-        const grayData = this.toGrayScale(imageData);
-        
-        // 查找定位标记（简化版本）
-        const patterns = this.findFinderPatterns(grayData, imageData.width, imageData.height);
-        
-        if (patterns.length >= 3) {
-            // 尝试解码（这里返回模拟数据，实际需要完整的解码算法）
-            return this.mockDecode();
-        }
-        
-        return null;
-    }
-
-    // 转换为灰度图
-    toGrayScale(imageData) {
-        const data = imageData.data;
-        const grayData = new Uint8Array(data.length / 4);
-        
-        for (let i = 0; i < data.length; i += 4) {
-            const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-            grayData[i / 4] = gray;
-        }
-        
-        return grayData;
-    }
-
-    // 查找定位标记
-    findFinderPatterns(grayData, width, height) {
-        const patterns = [];
-        const minSize = Math.min(width, height) / 20;
-        
-        // 简化的定位标记检测
-        for (let y = minSize; y < height - minSize; y += 5) {
-            for (let x = minSize; x < width - minSize; x += 5) {
-                if (this.isFinderPattern(grayData, width, x, y, minSize)) {
-                    patterns.push({ x, y });
-                }
+    }    // 使用jsQR库解码二维码
+    decodeQRCode(imageData) {
+        try {
+            // 检查jsQR是否可用
+            if (typeof jsQR === 'undefined') {
+                console.error('jsQR库未加载，无法进行二维码解析');
+                throw new Error('二维码解析库未加载');
             }
-        }
-        
-        return patterns;
-    }
 
-    // 检查是否为定位标记
-    isFinderPattern(grayData, width, x, y, size) {
-        // 简化检测逻辑
-        const threshold = 128;
-        const center = grayData[y * width + x];
-        
-        return center < threshold; // 简单的黑点检测
-    }
+            // 使用jsQR解码
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "dontInvert",
+            });
 
-    // 模拟解码（实际项目中需要完整的解码算法）
-    mockDecode() {
-        // 这里应该返回实际的二维码内容
-        // 为了演示，返回一个模拟的TOTP URI
-        const mockURIs = [
-            'otpauth://totp/Example:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example',
-            'otpauth://totp/GitHub:user@github.com?secret=KBSWY3DPEHPK3PXP&issuer=GitHub',
-            'otpauth://totp/Google:user@gmail.com?secret=LBSWY3DPEHPK3PXP&issuer=Google'
-        ];
-        
-        return mockURIs[Math.floor(Math.random() * mockURIs.length)];
-    }
+            if (code) {
+                console.log('二维码解码成功:', code.data);
+                return code.data;
+            }
+
+            return null;
+        } catch (error) {
+            console.error('二维码解码失败:', error);
+            throw error;
+        }    }
 
     // 拍照识别
     async captureAndScan() {
@@ -173,16 +181,19 @@ class QRScanner {
             // 绘制当前帧
             this.canvas.width = this.video.videoWidth;
             this.canvas.height = this.video.videoHeight;
-            this.context.drawImage(this.video, 0, 0);
-
-            // 获取图像数据并检测
+            this.context.drawImage(this.video, 0, 0);            // 获取图像数据并检测
             const imageData = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
-            const qrData = this.simpleQRDetection(imageData);
-
-            if (qrData) {
-                return { success: true, data: qrData };
-            } else {
-                return { success: false, message: '未检测到二维码' };
+            
+            try {
+                const qrData = this.decodeQRCode(imageData);
+                
+                if (qrData) {
+                    return { success: true, data: qrData };
+                } else {
+                    return { success: false, message: '未检测到二维码' };
+                }
+            } catch (decodeError) {
+                return { success: false, message: '二维码解析失败: ' + decodeError.message };
             }
         } catch (error) {
             return { success: false, message: `拍照失败: ${error.message}` };
@@ -216,16 +227,19 @@ class QRScanner {
                     context.drawImage(video, 0, 0);
                     
                     // 停止屏幕录制
-                    stream.getTracks().forEach(track => track.stop());
-                    
-                    // 检测二维码
+                    stream.getTracks().forEach(track => track.stop());                  // 检测二维码
                     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                    const qrData = this.simpleQRDetection(imageData);
                     
-                    if (qrData) {
-                        resolve({ success: true, data: qrData });
-                    } else {
-                        resolve({ success: false, message: '屏幕中未检测到二维码' });
+                    try {
+                        const qrData = this.decodeQRCode(imageData);
+                        
+                        if (qrData) {
+                            resolve({ success: true, data: qrData });
+                        } else {
+                            resolve({ success: false, message: '屏幕中未检测到二维码' });
+                        }
+                    } catch (decodeError) {
+                        resolve({ success: false, message: '二维码解析失败: ' + decodeError.message });
                     }
                 };
             });
@@ -253,15 +267,18 @@ class QRScanner {
                     
                     canvas.width = img.width;
                     canvas.height = img.height;
-                    context.drawImage(img, 0, 0);
+                    context.drawImage(img, 0, 0);                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
                     
-                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                    const qrData = this.simpleQRDetection(imageData);
-                    
-                    if (qrData) {
-                        resolve({ success: true, data: qrData });
-                    } else {
-                        resolve({ success: false, message: '图片中未检测到二维码' });
+                    try {
+                        const qrData = this.decodeQRCode(imageData);
+                        
+                        if (qrData) {
+                            resolve({ success: true, data: qrData });
+                        } else {
+                            resolve({ success: false, message: '图片中未检测到二维码' });
+                        }
+                    } catch (decodeError) {
+                        resolve({ success: false, message: '二维码解析失败: ' + decodeError.message });
                     }
                 };
                 

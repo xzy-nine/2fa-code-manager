@@ -34,7 +34,7 @@ class SettingManager {
     }
 
     initElements() {
-        // 获取所有DOM元素
+        // 获取所有DOM元素        
         this.elements = {
             backButton: document.getElementById('backButton'),
             testWebdavButton: document.getElementById('testWebdav'),
@@ -44,7 +44,8 @@ class SettingManager {
             addConfigButton: document.getElementById('addConfig'),
             exportConfigsButton: document.getElementById('exportConfigs'),
             importConfigsButton: document.getElementById('importConfigs'),
-            syncToCloudButton: document.getElementById('syncToCloud'),
+            backupToCloudButton: document.getElementById('backupToCloud'),
+            restoreFromCloudButton: document.getElementById('restoreFromCloud'),
             validateConfigsButton: document.getElementById('validateConfigs'),
             addConfigModal: document.getElementById('addConfigModal'),
             closeModal: document.querySelector('.close'),
@@ -76,12 +77,14 @@ class SettingManager {
         
         // 导出配置
         this.elements.exportConfigsButton?.addEventListener('click', () => this.exportConfigs());
-        
-        // 导入配置
+          // 导入配置
         this.elements.importConfigsButton?.addEventListener('click', () => this.importConfigs());
         
-        // 同步到云端
-        this.elements.syncToCloudButton?.addEventListener('click', () => this.syncToCloud());
+        // 备份到云端
+        this.elements.backupToCloudButton?.addEventListener('click', () => this.backupToCloud());
+        
+        // 从云端恢复
+        this.elements.restoreFromCloudButton?.addEventListener('click', () => this.restoreFromCloud());
         
         // 验证配置
         this.elements.validateConfigsButton?.addEventListener('click', () => this.validateConfigs());
@@ -176,9 +179,7 @@ class SettingManager {
         if (this.elements.addConfigModal) {
             this.elements.addConfigModal.style.display = 'none';
         }
-    }
-
-    async saveNewConfig() {
+    }    async saveNewConfig() {
         const name = document.getElementById('configName')?.value;
         const secret = document.getElementById('configSecret')?.value;
         const issuer = document.getElementById('configIssuer')?.value;
@@ -196,9 +197,14 @@ class SettingManager {
                 type: 'totp'
             };
 
+            // 优先保存到本地存储
             const result = await this.localStorageManager.addLocalConfig(config);
             if (result.success) {
-                this.showMessage('配置已添加', 'success');
+                this.showMessage('配置已保存到本地', 'success');
+                
+                // 自动备份到云端（如果配置了WebDAV）
+                this.backupToCloud(result.config);
+                
                 this.hideAddConfigModal();
                 this.clearConfigForm();
             } else {
@@ -206,6 +212,24 @@ class SettingManager {
             }
         } catch (error) {
             this.showMessage('添加失败: ' + error.message, 'error');
+        }
+    }
+
+    // 自动备份到云端
+    async backupToCloud(config) {
+        try {
+            if (this.webdavClient) {
+                const backupResult = await this.webdavClient.addConfig(config);
+                if (backupResult.success) {
+                    this.showMessage('已自动备份到云端', 'info', 2000);
+                } else {
+                    console.warn('云端备份失败:', backupResult.message);
+                    this.showMessage('云端备份失败，但本地已保存', 'warning', 3000);
+                }
+            }
+        } catch (error) {
+            console.warn('云端备份出错:', error);
+            // 备份失败不影响主要功能
         }
     }
 
@@ -271,16 +295,127 @@ class SettingManager {
         };
         
         input.click();
+    }    // 备份本地配置到云端
+    async backupToCloud() {
+        try {
+            if (!this.webdavClient) {
+                this.showMessage('请先配置WebDAV服务器', 'warning');
+                return;
+            }
+
+            this.showMessage('正在备份到云端...', 'info');
+            
+            // 获取所有本地配置
+            const localConfigs = await this.localStorageManager.getAllLocalConfigs();
+            
+            if (localConfigs.length === 0) {
+                this.showMessage('没有本地配置需要备份', 'info');
+                return;
+            }
+
+            let successCount = 0;
+            let failCount = 0;
+
+            // 逐个备份配置
+            for (const config of localConfigs) {
+                try {
+                    const result = await this.webdavClient.addConfig(config.config || config);
+                    if (result.success) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                        console.warn('备份配置失败:', config.name, result.message);
+                    }
+                } catch (error) {
+                    failCount++;
+                    console.error('备份配置出错:', config.name, error);
+                }
+            }
+
+            if (failCount === 0) {
+                this.showMessage(`成功备份 ${successCount} 个配置到云端`, 'success');
+            } else {
+                this.showMessage(`备份完成：成功 ${successCount} 个，失败 ${failCount} 个`, 'warning');
+            }
+        } catch (error) {
+            this.showMessage('备份失败: ' + error.message, 'error');
+        }
+    }
+
+    // 从云端恢复配置到本地
+    async restoreFromCloud() {
+        try {
+            if (!this.webdavClient) {
+                this.showMessage('请先配置WebDAV服务器', 'warning');
+                return;
+            }
+
+            if (!confirm('从云端恢复会与本地配置合并，是否继续？')) {
+                return;
+            }
+
+            this.showMessage('正在从云端恢复...', 'info');
+            
+            // 获取云端配置列表
+            const cloudConfigs = await this.webdavClient.getConfigList();
+            
+            if (cloudConfigs.length === 0) {
+                this.showMessage('云端没有配置可恢复', 'info');
+                return;
+            }
+
+            // 获取本地现有配置，用于去重
+            const localConfigs = await this.localStorageManager.getLocalConfigList();
+            const localConfigNames = new Set(localConfigs.map(c => `${c.name}_${c.issuer || ''}`));
+
+            let successCount = 0;
+            let skipCount = 0;
+            let failCount = 0;
+
+            // 逐个恢复配置
+            for (const cloudConfig of cloudConfigs) {
+                try {
+                    const configKey = `${cloudConfig.name}_${cloudConfig.issuer || ''}`;
+                    
+                    // 检查是否已存在
+                    if (localConfigNames.has(configKey)) {
+                        skipCount++;
+                        continue;
+                    }
+
+                    // 获取完整的云端配置
+                    const fullConfig = await this.webdavClient.getConfig(cloudConfig.id);
+                    if (fullConfig.success) {
+                        const result = await this.localStorageManager.addLocalConfig(fullConfig.config);
+                        if (result.success) {
+                            successCount++;
+                            localConfigNames.add(configKey); // 避免重复
+                        } else {
+                            failCount++;
+                        }
+                    } else {
+                        failCount++;
+                    }
+                } catch (error) {
+                    failCount++;
+                    console.error('恢复配置出错:', cloudConfig.name, error);
+                }
+            }
+
+            const message = `恢复完成：新增 ${successCount} 个，跳过 ${skipCount} 个，失败 ${failCount} 个`;
+            if (failCount === 0) {
+                this.showMessage(message, 'success');
+            } else {
+                this.showMessage(message, 'warning');
+            }
+        } catch (error) {
+            this.showMessage('恢复失败: ' + error.message, 'error');
+        }
     }
 
     async syncToCloud() {
-        try {
-            this.showMessage('正在同步到云端...', 'info');
-            // 这里实现同步逻辑
-            this.showMessage('同步完成', 'success');
-        } catch (error) {
-            this.showMessage('同步失败: ' + error.message, 'error');
-        }
+        // 保留旧方法，实际调用备份功能
+        await this.backupToCloud();
     }
 
     async validateConfigs() {
@@ -340,13 +475,12 @@ class SettingManager {
                 if (document.getElementById('autoBackup')) {
                     document.getElementById('autoBackup').checked = config.autoBackup || false;
                 }
-            }
-        } catch (error) {
+            }        } catch (error) {
             console.error('加载设置失败:', error);
         }
     }
 
-    showMessage(message, type = 'info') {
+    showMessage(message, type = 'info', duration = 3000) {
         // 创建并显示消息提示
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${type}`;
@@ -380,7 +514,7 @@ class SettingManager {
         messageDiv.textContent = message;
         document.body.appendChild(messageDiv);
 
-        // 3秒后自动移除
+        // 根据指定时间后自动移除
         setTimeout(() => {
             if (messageDiv.parentNode) {
                 messageDiv.style.opacity = '0';
@@ -390,7 +524,7 @@ class SettingManager {
                     }
                 }, 300);
             }
-        }, 3000);    }
+        }, duration);}
 }
 
 // 全局变量导出（用于Service Worker环境）

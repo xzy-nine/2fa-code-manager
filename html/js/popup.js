@@ -278,21 +278,43 @@ class PopupManager {constructor() {
         }
     }    // 加载配置
     async loadConfigs() {
-        // 优先从WebDAV加载，失败则从本地存储加载
+        // 优先从本地存储加载，云端作为备份和合并源
         try {
+            // 先从本地存储加载
+            const localConfigs = await this.localStorageManager.getLocalConfigList();
+            
+            // 如果配置了WebDAV，尝试从云端获取备份配置进行合并
             if (this.webdavClient) {
-                const cloudConfigs = await this.webdavClient.getConfigList();
-                const localConfigs = await this.localStorageManager.getLocalConfigList();
-                
-                // 合并云端和本地配置
-                return [...cloudConfigs, ...localConfigs];
+                try {
+                    const cloudConfigs = await this.webdavClient.getConfigList();
+                    
+                    // 合并本地和云端配置，本地优先，去重
+                    const mergedConfigs = [...localConfigs];
+                    cloudConfigs.forEach(cloudConfig => {
+                        // 检查本地是否已存在相同配置（通过ID或名称+发行方匹配）
+                        const exists = localConfigs.some(localConfig => 
+                            localConfig.id === cloudConfig.id || 
+                            (localConfig.name === cloudConfig.name && localConfig.issuer === cloudConfig.issuer)
+                        );
+                        if (!exists) {
+                            // 标记为云端配置，便于用户识别
+                            mergedConfigs.push({...cloudConfig, source: 'cloud'});
+                        }
+                    });
+                    
+                    return mergedConfigs;
+                } catch (error) {
+                    console.warn('从WebDAV获取备份配置失败:', error);
+                    // 云端获取失败时仍返回本地配置
+                    return localConfigs;
+                }
             }
+            
+            return localConfigs;
         } catch (error) {
-            console.warn('从WebDAV加载配置失败:', error);
+            console.error('加载配置失败:', error);
+            return [];
         }
-        
-        // 从加密本地存储加载
-        return await this.localStorageManager.getLocalConfigList();
     }
 
     // 渲染配置列表
@@ -308,20 +330,26 @@ class PopupManager {constructor() {
                 </div>
             `;
             return;
-        }
-
-        configItems.innerHTML = configs.map(config => `
-            <div class="config-item" data-config-id="${config.id}">
-                <div class="config-info">
-                    <div class="config-avatar">${config.name.charAt(0).toUpperCase()}</div>
-                    <div class="config-details">
-                        <div class="config-name">${config.name}</div>
-                        <div class="config-domain">${config.issuer || config.domain || ''}</div>
+        }        configItems.innerHTML = configs.map(config => {
+            const sourceIcon = config.source === 'cloud' ? '☁️' : '💾';
+            const sourceTitle = config.source === 'cloud' ? '云端备份' : '本地存储';
+            
+            return `
+                <div class="config-item" data-config-id="${config.id}">
+                    <div class="config-info">
+                        <div class="config-avatar">${config.name.charAt(0).toUpperCase()}</div>
+                        <div class="config-details">
+                            <div class="config-name">
+                                ${config.name}
+                                <span class="config-source" title="${sourceTitle}">${sourceIcon}</span>
+                            </div>
+                            <div class="config-domain">${config.issuer || config.domain || ''}</div>
+                        </div>
                     </div>
+                    <div class="config-status">可用</div>
                 </div>
-                <div class="config-status">可用</div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
 
         // 添加点击事件
         configItems.querySelectorAll('.config-item').forEach(item => {
@@ -515,42 +543,64 @@ class PopupManager {constructor() {
         if (progress.timeRemaining <= 1) {
             setTimeout(() => this.updateLocalCodesDisplay(), 100);
         }
-    }
-
-    // 开始摄像头扫描
+    }    // 开始摄像头扫描
     async startCameraScanning() {
         const videoElement = document.getElementById('cameraVideo');
-        const canvasElement = document.getElementById('scanCanvas');        
+        const canvasElement = document.getElementById('scanCanvas');
+        
+        if (!videoElement || !canvasElement) {
+            this.showMessage('页面元素未找到，请刷新页面重试', 'error');
+            return;
+        }
+        
         if (!this.qrScanner) {
             this.qrScanner = new QRCode();
         }
+
+        this.showMessage('正在启动摄像头...', 'info');
 
         const result = await this.qrScanner.initCamera(videoElement, canvasElement);
         
         if (result.success) {
             document.getElementById('scanArea').style.display = 'block';
             document.querySelector('.scan-options').style.display = 'none';
-            
-            // 开始检测二维码
-            this.qrScanner.startDetection((qrData) => {
+              // 开始检测二维码
+            this.qrScanner.startScanning((qrData) => {
                 this.handleQRCodeDetected(qrData);
             });
+            
+            this.showMessage('摄像头已启动，请将二维码放入扫描框内', 'success');
         } else {
-            this.showMessage('摄像头启动失败: ' + result.error, 'error');
+            this.showMessage('摄像头启动失败: ' + result.message, 'error');
+            
+            // 如果是权限问题，提供备选方案
+            if (result.message.includes('权限') || result.message.includes('SecurityError')) {
+                this.showCameraPermissionHelp();
+            }
         }
-    }
+    }// 开始屏幕扫描
+    async startScreenScanning() {        
+        try {
+            console.log('开始屏幕扫描...');
+            
+            if (!this.qrScanner) {
+                this.qrScanner = new QRCode();
+            }
 
-    // 开始屏幕扫描
-    async startScreenScanning() {        if (!this.qrScanner) {
-            this.qrScanner = new QRCode();
-        }
-
-        const result = await this.qrScanner.scanScreen();
-        
-        if (result.success) {
-            this.handleQRCodeDetected(result.data);
-        } else {
-            this.showMessage('屏幕扫描失败: ' + result.error, 'error');
+            this.showMessage('正在请求屏幕录制权限...', 'info');
+            const result = await this.qrScanner.scanScreen();
+            
+            console.log('屏幕扫描结果:', result);
+            
+            if (result.success) {
+                this.showMessage('屏幕扫描成功！', 'success');
+                this.handleQRCodeDetected(result.data);
+            } else {
+                this.showMessage('屏幕扫描失败: ' + result.message, 'error');
+            }
+        } catch (error) {
+            console.error('屏幕扫描出错:', error);
+            this.showMessage('屏幕扫描出错: ' + error.message, 'error');
         }
     }
 
@@ -564,46 +614,70 @@ class PopupManager {constructor() {
         } else {
             this.showMessage('识别失败', 'error');
         }
-    }
-
-    // 停止扫描
+    }    // 停止扫描
     stopScanning() {
         if (this.qrScanner) {
-            this.qrScanner.stop();
+            this.qrScanner.stopScanning();
         }
         
         document.getElementById('scanArea').style.display = 'none';
         document.getElementById('scanResult').style.display = 'none';
         document.querySelector('.scan-options').style.display = 'block';
-    }
-
-    // 处理二维码检测
+    }// 处理二维码检测
     handleQRCodeDetected(qrData) {
         try {
+            console.log('检测到二维码数据:', qrData);
+            
+            if (!qrData || typeof qrData !== 'string') {
+                throw new Error('无效的二维码数据');
+            }
+            
             const parsedData = this.parseQRData(qrData);
+            console.log('解析后的数据:', parsedData);
+            
             this.displayScanResult(parsedData, qrData);
         } catch (error) {
-            this.showMessage('二维码解析失败', 'error');
+            console.error('二维码处理失败:', error);
+            this.showMessage('二维码解析失败: ' + error.message, 'error');
         }
-    }
-
-    // 解析二维码数据
+    }    // 解析二维码数据
     parseQRData(qrData) {
-        if (qrData.startsWith('otpauth://totp/')) {
-            const url = new URL(qrData);
-            const pathParts = url.pathname.slice(1).split(':');
-            
-            return {
-                type: 'totp',
-                issuer: url.searchParams.get('issuer') || pathParts[0] || '',
-                account: pathParts[1] || '',
-                secret: url.searchParams.get('secret'),
-                digits: parseInt(url.searchParams.get('digits')) || 6,
-                period: parseInt(url.searchParams.get('period')) || 30
-            };
+        console.log('开始解析二维码:', qrData);
+        
+        if (!qrData || typeof qrData !== 'string') {
+            throw new Error('二维码数据无效');
         }
         
-        throw new Error('不支持的二维码格式');
+        if (qrData.startsWith('otpauth://totp/')) {
+            try {
+                const url = new URL(qrData);
+                console.log('URL解析成功:', url);
+                
+                const pathParts = url.pathname.slice(1).split(':');
+                const secret = url.searchParams.get('secret');
+                
+                if (!secret) {
+                    throw new Error('二维码中缺少密钥信息');
+                }
+                
+                const parsedData = {
+                    type: 'totp',
+                    issuer: url.searchParams.get('issuer') || pathParts[0] || '',
+                    account: pathParts[1] || '',
+                    secret: secret,
+                    digits: parseInt(url.searchParams.get('digits')) || 6,
+                    period: parseInt(url.searchParams.get('period')) || 30
+                };
+                
+                console.log('TOTP解析完成:', parsedData);
+                return parsedData;
+            } catch (urlError) {
+                console.error('URL解析失败:', urlError);
+                throw new Error('二维码格式错误: ' + urlError.message);
+            }
+        }
+        
+        throw new Error('不支持的二维码格式，仅支持TOTP认证二维码');
     }
 
     // 显示扫描结果
@@ -629,7 +703,10 @@ class PopupManager {constructor() {
         this.scannedData = parsedData;
     }    // 保存扫描的配置
     async saveScannedConfig() {
-        if (!this.scannedData) return;
+        if (!this.scannedData) {
+            this.showMessage('没有扫描数据可保存', 'error');
+            return;
+        }
         
         const configName = document.getElementById('configName').value.trim();
         if (!configName) {
@@ -638,37 +715,57 @@ class PopupManager {constructor() {
         }
         
         try {
+            console.log('准备保存扫描的配置:', this.scannedData);
+            
             const config = {
                 name: configName,
                 ...this.scannedData,
                 created: new Date().toISOString()
             };
             
-            // 检查是否启用了本地存储
-            const localStorageConfig = await this.getStorageData('localStorageConfig');
-            const saveToLocal = localStorageConfig?.allowLocalStorage;
+            console.log('最终配置数据:', config);
             
-            if (saveToLocal) {
-                // 保存到加密本地存储
-                const result = await this.localStorageManager.addLocalConfig(config);
-                if (result.success) {
-                    this.showMessage('配置已保存到本地加密存储', 'success');
-                } else {
-                    this.showMessage('保存失败: ' + result.message, 'error');
-                }
-            } else {
-                // 保存到普通本地存储（向后兼容）
-                const configs = await this.getStorageData('totpConfigs') || [];
-                configs.push({
-                    id: Date.now().toString(),
-                    ...config
-                });
-                await this.setStorageData('totpConfigs', configs);
-                this.showMessage('配置已保存', 'success');
+            // 确保本地存储管理器已初始化
+            if (!this.localStorageManager) {
+                this.localStorageManager = new Storage();
             }
             
-            this.stopScanning();
+            // 默认保存到本地加密存储
+            this.showMessage('正在保存配置...', 'info');
+            const result = await this.localStorageManager.addLocalConfig(config);
+            
+            console.log('保存结果:', result);
+            
+            if (result.success) {
+                this.showMessage('配置已保存到本地', 'success');
+                
+                // 清理扫描数据
+                this.scannedData = null;
+                
+                // 自动备份到云端（如果可用）
+                try {
+                    if (this.webdavClient) {
+                        const backupResult = await this.webdavClient.addConfig(config);
+                        if (backupResult.success) {
+                            this.showMessage('已自动备份到云端', 'info', 2000);
+                        } else {
+                            console.warn('云端备份失败:', backupResult.message);
+                        }
+                    }                } catch (backupError) {
+                    console.warn('云端备份出错:', backupError);
+                    // 备份失败不影响主要功能
+                }
+                
+                // 停止扫描并刷新本地列表
+                this.stopScanning();
+                if (this.currentTab === 'local') {
+                    setTimeout(() => this.refreshLocalCodes(), 100);
+                }
+            } else {
+                this.showMessage('保存失败: ' + result.message, 'error');
+            }
         } catch (error) {
+            console.error('保存配置出错:', error);
             this.showMessage('保存失败: ' + error.message, 'error');
         }
     }
@@ -731,11 +828,45 @@ class PopupManager {constructor() {
         modalTitle.textContent = title;
         modalBody.innerHTML = content;
         modal.style.display = 'block';
-    }
-
-    // 隐藏模态框
+    }    // 隐藏模态框
     hideModal() {
         document.getElementById('modal').style.display = 'none';
+    }
+    
+    // 显示摄像头权限帮助
+    showCameraPermissionHelp() {
+        const helpContent = `
+            <div class="permission-help">
+                <h4>摄像头访问权限问题</h4>
+                <p>浏览器扩展的弹出页面可能无法直接访问摄像头。请尝试以下解决方案：</p>
+                <ol>
+                    <li><strong>检查浏览器权限：</strong>
+                        <ul>
+                            <li>确保在浏览器地址栏左侧的权限图标中允许摄像头访问</li>
+                            <li>在Chrome设置 > 隐私设置和安全性 > 网站设置 > 摄像头中允许访问</li>
+                        </ul>
+                    </li>
+                    <li><strong>使用备选方案：</strong>
+                        <ul>
+                            <li>点击"屏幕识别"功能扫描屏幕上的二维码</li>
+                            <li>在设置页面中手动输入验证码配置</li>
+                        </ul>
+                    </li>
+                    <li><strong>浏览器兼容性：</strong>
+                        <ul>
+                            <li>建议使用Chrome或Edge最新版本</li>
+                            <li>Firefox可能对扩展摄像头访问有限制</li>
+                        </ul>
+                    </li>
+                </ol>
+                <div class="help-actions">
+                    <button onclick="popupManager.openSettings()" class="primary-btn">打开设置页面</button>
+                    <button onclick="popupManager.startScreenScanning()" class="secondary-btn">使用屏幕识别</button>
+                </div>
+            </div>
+        `;
+        
+        this.showModal('摄像头权限帮助', helpContent);
     }
 
     // 存储操作
@@ -751,16 +882,14 @@ class PopupManager {constructor() {
         return new Promise((resolve) => {
             chrome.storage.local.set({ [key]: value }, resolve);
         });
-    }
-
-    // 清理资源
+    }    // 清理资源
     cleanup() {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
         }
         
         if (this.qrScanner) {
-            this.qrScanner.stop();
+            this.qrScanner.stopScanning();
         }
     }
 }

@@ -5,22 +5,22 @@ class LocalStorageManager {
         this.cryptoManager = new GlobalScope.CryptoManager();
         this.storageKey = 'encrypted_local_configs';
         this.configListKey = 'local_config_list';
-    }
-
-    // 获取加密密钥（复用云端逻辑）
+    }    // 获取加密密钥（复用云端逻辑）
     async getEncryptionKey() {
         try {
             const settings = await this.getStorageData('encryptionConfig');
+            // 如果没有设置自定义密钥，返回null让加密管理器使用默认密钥
             return settings?.customKey || null;
         } catch (error) {
             console.error('获取加密密钥失败:', error);
+            // 返回null让加密管理器使用默认密钥
             return null;
         }
-    }
-
-    // 添加本地配置（加密存储）
+    }    // 添加本地配置（加密存储）
     async addLocalConfig(config) {
         try {
+            console.log('开始添加本地配置:', config);
+            
             // 生成配置ID
             const configId = this.generateConfigId();
             const configWithId = {
@@ -30,14 +30,19 @@ class LocalStorageManager {
                 type: 'local'
             };
 
+            console.log('配置ID已生成:', configId);
+
             // 获取加密密钥
             const encryptionKey = await this.getEncryptionKey();
+            console.log('加密密钥状态:', encryptionKey ? '已设置自定义密钥' : '使用默认密钥');
             
             // 加密配置数据（复用云端加密逻辑）
             const encryptedConfig = await this.cryptoManager.encrypt(configWithId, encryptionKey);
+            console.log('配置加密完成');
             
             // 获取现有的加密配置列表
             const configList = await this.getLocalConfigList();
+            console.log('当前配置列表长度:', configList.length);
             
             // 创建配置列表项（明文，用于快速检索）
             const listItem = {
@@ -58,6 +63,7 @@ class LocalStorageManager {
             await this.saveEncryptedConfig(configId, encryptedConfig);
             await this.saveLocalConfigList(configList);
             
+            console.log('本地配置保存成功:', listItem);
             return { success: true, config: listItem };
         } catch (error) {
             console.error('添加本地配置失败:', error);
