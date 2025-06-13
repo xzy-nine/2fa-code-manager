@@ -1,19 +1,21 @@
 // Background Service Worker 入口文件
 // Service Worker环境不支持ES6模块，需要使用importScripts
 
-// 导入所有需要的脚本
+// 导入所有需要的脚本 - 这些脚本将通过全局变量暴露类
 importScripts('./crypto.js');
 importScripts('./totp.js');
 importScripts('./local-storage.js');
 importScripts('./webdav.js');
+importScripts('./globals.js');  // 导入全局变量管理器
 
 // 统一的后台服务管理器
 class BackgroundManager {
     constructor() {
-        this.crypto = new CryptoManager();
-        this.totp = new TOTPGenerator();
-        this.storage = new LocalStorageManager();
-        this.webdav = new WebDAVClient();
+        // 使用全局变量创建模块实例
+        this.crypto = Modules.getCrypto();
+        this.totp = Modules.getTOTP();
+        this.storage = Modules.getStorage();
+        this.webdav = Modules.getWebDAV();
         this.init();
     }
 

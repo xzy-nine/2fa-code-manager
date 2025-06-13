@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模块系统测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>2FA扩展模块系统测试</h1>
+    
+    <div class="test-section">
+        <h2>ES6模块导入测试</h2>
+        <div id="es6-test-result">测试中...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>模块功能测试</h2>
+        <div id="function-test-result">测试中...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>应用实例测试</h2>
+        <div id="app-test-result">测试中...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>测试日志</h2>
+        <pre id="test-log"></pre>
+    </div>
+
+    <script type="module">
+        // 测试日志记录
+        const testLog = document.getElementById('test-log');
+        function log(message) {
+            console.log(message);
+            testLog.textContent += message + '\n';
+        }
+
+        // ES6模块导入测试
+        async function testES6Import() {
+            try {
+                log('开始ES6模块导入测试...');
+                
+                // 导入主模块
+                const { 
+                    CryptoManager, 
+                    TOTPGenerator, 
+                    WebDAVClient,
+                    LocalStorageManager,
+                    QRScanner,
+                    PopupManager,
+                    SettingManager,
+                    popupManager,
+                    settingManager
+                } = await import('./js/main.js');
+                
+                log('✓ 成功导入所有模块类');
+                log('✓ 成功导入预创建实例');
+                
+                document.getElementById('es6-test-result').innerHTML = '<span class="success">✓ ES6模块导入测试通过</span>';
+                
+                return {
+                    CryptoManager, 
+                    TOTPGenerator, 
+                    WebDAVClient,
+                    LocalStorageManager,
+                    QRScanner,
+                    PopupManager,
+                    SettingManager,
+                    popupManager,
+                    settingManager
+                };
+            } catch (error) {
+                log('✗ ES6模块导入失败: ' + error.message);
+                document.getElementById('es6-test-result').innerHTML = '<span class="error">✗ ES6模块导入测试失败</span>';
+                throw error;
+            }
+        }
+
+        // 模块功能测试
+        async function testModuleFunctions(modules) {
+            try {
+                log('开始模块功能测试...');
+                
+                // 测试CryptoManager
+                const crypto = new modules.CryptoManager();
+                const testData = 'test data';
+                const encrypted = await crypto.encrypt(testData);
+                const decrypted = await crypto.decrypt(encrypted.data, null, encrypted.salt, encrypted.iv);
+                
+                if (decrypted === testData) {
+                    log('✓ CryptoManager 加密解密测试通过');
+                } else {
+                    throw new Error('CryptoManager 加密解密测试失败');
+                }
+                
+                // 测试TOTPGenerator
+                const totp = new modules.TOTPGenerator();
+                const code = totp.generate('JBSWY3DPEHPK3PXP'); // 测试密钥
+                
+                if (code && code.length === 6) {
+                    log('✓ TOTPGenerator 验证码生成测试通过');
+                } else {
+                    throw new Error('TOTPGenerator 验证码生成测试失败');
+                }
+                
+                // 测试LocalStorageManager
+                const storage = new modules.LocalStorageManager();
+                const testConfig = { 
+                    name: 'test', 
+                    secret: 'JBSWY3DPEHPK3PXP',
+                    issuer: 'TestApp'
+                };
+                
+                await storage.saveConfig(testConfig);
+                const configs = await storage.getAllConfigs();
+                
+                if (configs.length > 0) {
+                    log('✓ LocalStorageManager 存储测试通过');
+                } else {
+                    throw new Error('LocalStorageManager 存储测试失败');
+                }
+                
+                document.getElementById('function-test-result').innerHTML = '<span class="success">✓ 模块功能测试通过</span>';
+                
+            } catch (error) {
+                log('✗ 模块功能测试失败: ' + error.message);
+                document.getElementById('function-test-result').innerHTML = '<span class="error">✗ 模块功能测试失败</span>';
+                throw error;
+            }
+        }
+
+        // 应用实例测试
+        async function testAppInstance() {
+            try {
+                log('开始应用实例测试...');
+                
+                const { default: app } = await import('./js/main.js');
+                
+                await app.init();
+                log('✓ 应用初始化成功');
+                
+                const crypto = app.getManager('crypto');
+                const utils = app.getUtils();
+                const config = app.getConfig();
+                
+                if (crypto && utils && config) {
+                    log('✓ 应用实例方法测试通过');
+                } else {
+                    throw new Error('应用实例方法测试失败');
+                }
+                
+                document.getElementById('app-test-result').innerHTML = '<span class="success">✓ 应用实例测试通过</span>';
+                
+            } catch (error) {
+                log('✗ 应用实例测试失败: ' + error.message);
+                document.getElementById('app-test-result').innerHTML = '<span class="error">✗ 应用实例测试失败</span>';
+                throw error;
+            }
+        }
+
+        // 执行所有测试
+        async function runAllTests() {
+            try {
+                log('开始执行模块系统测试...\n');
+                
+                const modules = await testES6Import();
+                await testModuleFunctions(modules);
+                await testAppInstance();
+                
+                log('\n🎉 所有测试通过！模块系统工作正常。');
+                
+            } catch (error) {
+                log('\n❌ 测试失败: ' + error.message);
+            }
+        }
+
+        // 页面加载后开始测试
+        document.addEventListener('DOMContentLoaded', runAllTests);
+    </script>
+</body>
+</html>

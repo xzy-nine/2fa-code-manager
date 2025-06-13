@@ -1,5 +1,5 @@
 // 加密解密模块
-export class CryptoManager {
+class CryptoManager {
     constructor() {
         this.defaultKey = 'default-2fa-key-2025';
     }
@@ -186,17 +186,20 @@ export class CryptoManager {
         
         if (strength < 2) {
             return { valid: false, message: '密钥强度太弱，建议包含大小写字母、数字和特殊字符' };
-        }
-        
+        }        
         return { valid: true, strength: strength };
     }
 }
 
-// 导出
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = CryptoManager;
-} else if (typeof window !== 'undefined') {
-    window.CryptoManager = CryptoManager;
-} else if (typeof globalThis !== 'undefined') {
-    globalThis.CryptoManager = CryptoManager;
-}
+// 全局变量导出 - 支持多种环境
+(() => {
+    const GlobalScope = (() => {
+        if (typeof globalThis !== 'undefined') return globalThis;
+        if (typeof window !== 'undefined') return window;
+        if (typeof self !== 'undefined') return self;
+        if (typeof global !== 'undefined') return global;
+        throw new Error('无法确定全局作用域');
+    })();
+    
+    GlobalScope.CryptoManager = CryptoManager;
+})();

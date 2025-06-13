@@ -1,7 +1,71 @@
 // 弹出页面主脚本
-import { Crypto, TOTP, WebDAV, Storage, QRCode, Utils } from './main.js';
+// 使用全局变量导入模块
+const GlobalScope = (() => {
+    if (typeof globalThis !== 'undefined') return globalThis;
+    if (typeof window !== 'undefined') return window;
+    if (typeof self !== 'undefined') return self;
+    if (typeof global !== 'undefined') return global;
+    throw new Error('无法确定全局作用域');
+})();
 
-export class PopupManager {constructor() {
+// 从全局变量获取模块
+const Crypto = GlobalScope.CryptoManager;
+const TOTP = GlobalScope.TOTPGenerator;
+const WebDAV = GlobalScope.WebDAVClient;
+const Storage = GlobalScope.LocalStorageManager;
+const QRCode = GlobalScope.QRScanner;
+
+// 工具函数
+const Utils = {
+    // 防抖函数
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
+
+    // 节流函数
+    throttle(func, limit) {
+        let inThrottle;
+        return function(...args) {
+            if (!inThrottle) {
+                func.apply(this, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
+    },
+
+    // 格式化时间
+    formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    },
+
+    // 生成随机ID
+    generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    },
+
+    // 验证URL格式
+    isValidUrl(string) {
+        try {
+            new URL(string);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+};
+
+class PopupManager {constructor() {
         this.currentTab = 'fill';
         this.authenticated = false;
         this.localAuthenticated = false;
@@ -784,13 +848,33 @@ messageStyles.textContent = `
 `;
 document.head.appendChild(messageStyles);
 
+// 全局变量导出（用于Service Worker环境）
+if (typeof globalThis !== 'undefined') {
+    globalThis.PopupManager = PopupManager;
+} else if (typeof window !== 'undefined') {
+    window.PopupManager = PopupManager;
+} else if (typeof self !== 'undefined') {
+    self.PopupManager = PopupManager;
+}
+
 // ES6模块导出
-export const popupManager = new PopupManager();
+const popupManager = new PopupManager();
 
 // 页面卸载时清理资源
 window.addEventListener('beforeunload', () => {
     popupManager.cleanup();
 });
 
-// 默认导出
-export default PopupManager;
+// 全局变量导出 - 支持多种环境
+(() => {
+    const GlobalScope = (() => {
+        if (typeof globalThis !== 'undefined') return globalThis;
+        if (typeof window !== 'undefined') return window;
+        if (typeof self !== 'undefined') return self;
+        if (typeof global !== 'undefined') return global;
+        throw new Error('无法确定全局作用域');
+    })();
+    
+    GlobalScope.PopupManager = PopupManager;
+    GlobalScope.popupManager = popupManager;
+})();

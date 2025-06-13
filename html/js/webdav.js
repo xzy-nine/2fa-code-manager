@@ -1,5 +1,5 @@
 // WebDAV客户端模块
-export class WebDAVClient {
+class WebDAVClient {
     constructor(config = {}) {
         this.baseUrl = config.url || '';
         this.username = config.username || '';
@@ -336,8 +336,7 @@ export class WebDAVClient {
             return {
                 success: true,
                 stats: {
-                    totalFiles: listResult.files.length,
-                    configCount: configList.length,
+                    totalFiles: listResult.files.length,                    configCount: configList.length,
                     lastUpdated: configList.length > 0 ? 
                         Math.max(...configList.map(c => new Date(c.createdAt).getTime())) : 
                         null
@@ -349,11 +348,15 @@ export class WebDAVClient {
     }
 }
 
-// 导出
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = WebDAVClient;
-} else if (typeof window !== 'undefined') {
-    window.WebDAVClient = WebDAVClient;
-} else if (typeof globalThis !== 'undefined') {
-    globalThis.WebDAVClient = WebDAVClient;
-}
+// 全局变量导出 - 支持多种环境
+(() => {
+    const GlobalScope = (() => {
+        if (typeof globalThis !== 'undefined') return globalThis;
+        if (typeof window !== 'undefined') return window;
+        if (typeof self !== 'undefined') return self;
+        if (typeof global !== 'undefined') return global;
+        throw new Error('无法确定全局作用域');
+    })();
+    
+    GlobalScope.WebDAVClient = WebDAVClient;
+})();

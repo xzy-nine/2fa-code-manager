@@ -41,7 +41,7 @@
     "128": "favicon.png"
   },  "web_accessible_resources": [
     {
-      "resources": ["html/js/crypto.js", "html/js/totp.js", "favicon.png"],
+      "resources": ["html/js/crypto.js", "html/js/totp.js", "html/js/globals.js", "favicon.png"],
       "matches": ["<all_urls>"]
     }
   ]

@@ -168,3 +168,45 @@
 │   └── settings.css            # 设置页面样式
 └── manifest.json
 ~~~~
+
+## 🔧 技术架构更新 (2025年6月)
+
+### 全局变量模块系统
+
+项目已从ES6模块系统迁移到全局变量模块系统，以确保与Chrome扩展的Service Worker环境完全兼容：
+
+#### 主要改进
+- ✅ **Service Worker兼容**: 完全支持Chrome扩展的Service Worker环境
+- ✅ **无ES6依赖**: 避免了ES6模块的兼容性问题
+- ✅ **统一加载**: 通过全局变量统一管理所有模块
+- ✅ **向后兼容**: 保留了原有的API接口
+
+#### 模块加载方式
+```html
+<!-- 按依赖顺序加载 -->
+<script src="./js/crypto.js"></script>
+<script src="./js/totp.js"></script>
+<script src="./js/local-storage.js"></script>
+<script src="./js/webdav.js"></script>
+<script src="./js/qr-scanner.js"></script>
+<script src="./js/popup.js"></script>     <!-- 弹出页面 -->
+<script src="./js/setting.js"></script>   <!-- 设置页面 -->
+<script src="./js/main.js"></script>      <!-- 主入口 -->
+```
+
+#### 使用方式
+```javascript
+// 直接使用全局变量
+const crypto = new CryptoManager();
+const totp = new TOTPGenerator();
+
+// 或使用别名（向后兼容）
+const crypto2 = new Crypto();
+const totp2 = new TOTP();
+
+// 使用统一应用实例
+await app.init();
+const utils = app.getUtils();
+```
+
+详细文档请参考：[全局变量模块系统使用指南](./GLOBAL_MODULE_GUIDE.md)

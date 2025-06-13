@@ -1,5 +1,6 @@
 // 内容脚本 - 负责页面交互
-export class ContentScript {
+// Content Script环境不支持ES6模块，使用全局类
+class ContentScript {
     constructor() {
         this.selectedInput = null;
         this.init();
@@ -470,17 +471,13 @@ if (document.readyState === 'loading') {
         }, 1000);
     });
 } else {
-    setTimeout(() => {
-        contentScript.autoDetectInputs();
+    setTimeout(() => {        contentScript.autoDetectInputs();
         contentScript.observePageChanges();
     }, 1000);
 }
 
-// ES6模块导出
-export { contentScript };
-
-// 默认导出
-export default {
-    ContentScript,
-    contentScript
-};
+// 全局变量导出（Content Script环境）
+if (typeof window !== 'undefined') {
+    window.ContentScript = ContentScript;
+    window.contentScript = contentScript;
+}

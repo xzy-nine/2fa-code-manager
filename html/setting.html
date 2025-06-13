@@ -127,9 +127,13 @@
             <div class="modal-footer">
                 <button id="saveConfig" class="btn btn-primary">保存</button>
                 <button id="cancelConfig" class="btn btn-secondary">取消</button>            </div>        </div>
-    </div>
-
-    <!-- 主模块导入 -->
-    <script type="module" src="./js/main.js"></script>
+    </div>    <!-- 按依赖顺序加载模块 -->
+    <script src="./js/crypto.js"></script>
+    <script src="./js/totp.js"></script>
+    <script src="./js/local-storage.js"></script>
+    <script src="./js/webdav.js"></script>
+    <script src="./js/qr-scanner.js"></script>
+    <script src="./js/setting.js"></script>
+    <script src="./js/main.js"></script>
 </body>
 </html>

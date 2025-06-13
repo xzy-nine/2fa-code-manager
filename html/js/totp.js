@@ -1,5 +1,5 @@
 // TOTP验证码生成模块
-export class TOTPGenerator {
+class TOTPGenerator {
     constructor() {
         this.timeStep = 30; // 30秒时间步长
         this.digits = 6;    // 6位验证码
@@ -181,8 +181,7 @@ export class TOTPGenerator {
     }
 
     // 计算验证码进度（用于UI显示）
-    getCodeProgress() {
-        const now = Math.floor(Date.now() / 1000);
+    getCodeProgress() {        const now = Math.floor(Date.now() / 1000);
         const timeRemaining = this.timeStep - (now % this.timeStep);
         const progress = ((this.timeStep - timeRemaining) / this.timeStep) * 100;
         
@@ -194,11 +193,15 @@ export class TOTPGenerator {
     }
 }
 
-// 导出
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = TOTPGenerator;
-} else if (typeof window !== 'undefined') {
-    window.TOTPGenerator = TOTPGenerator;
-} else if (typeof globalThis !== 'undefined') {
-    globalThis.TOTPGenerator = TOTPGenerator;
-}
+// 全局变量导出 - 支持多种环境
+(() => {
+    const GlobalScope = (() => {
+        if (typeof globalThis !== 'undefined') return globalThis;
+        if (typeof window !== 'undefined') return window;
+        if (typeof self !== 'undefined') return self;
+        if (typeof global !== 'undefined') return global;
+        throw new Error('无法确定全局作用域');
+    })();
+    
+    GlobalScope.TOTPGenerator = TOTPGenerator;
+})();

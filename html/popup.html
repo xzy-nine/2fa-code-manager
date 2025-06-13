@@ -176,9 +176,13 @@
             </div>
             <div class="modal-body" id="modalBody">
                 <!-- 动态内容 -->
-            </div>        </div>    </div>
-
-    <!-- 主模块导入 -->
-    <script type="module" src="./js/main.js"></script>
+            </div>        </div>    </div>    <!-- 按依赖顺序加载模块 -->
+    <script src="./js/crypto.js"></script>
+    <script src="./js/totp.js"></script>
+    <script src="./js/local-storage.js"></script>
+    <script src="./js/webdav.js"></script>
+    <script src="./js/qr-scanner.js"></script>
+    <script src="./js/popup.js"></script>
+    <script src="./js/main.js"></script>
 </body>
 </html>

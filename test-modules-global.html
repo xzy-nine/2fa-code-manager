@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全局变量模块系统测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .result {
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 全局变量模块系统测试</h1>
+        <p>此页面用于测试全局变量模块系统是否正常工作。</p>
+
+        <div class="test-section">
+            <h3>1. 基础模块加载测试</h3>
+            <button onclick="testModuleLoading()">测试模块加载</button>
+            <div id="moduleLoadingResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. CryptoManager 功能测试</h3>
+            <button onclick="testCrypto()">测试加密解密</button>
+            <div id="cryptoResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. TOTPGenerator 功能测试</h3>
+            <button onclick="testTOTP()">测试TOTP生成</button>
+            <div id="totpResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. 全局应用实例测试</h3>
+            <button onclick="testApp()">测试App实例</button>
+            <div id="appResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. 工具函数测试</h3>
+            <button onclick="testUtils()">测试Utils</button>
+            <div id="utilsResult" class="result"></div>
+        </div>
+    </div>
+
+    <!-- 按依赖顺序加载模块 -->
+    <script src="./html/js/crypto.js"></script>
+    <script src="./html/js/totp.js"></script>
+    <script src="./html/js/local-storage.js"></script>
+    <script src="./html/js/webdav.js"></script>
+    <script src="./html/js/qr-scanner.js"></script>
+    <script src="./html/js/globals.js"></script>
+    <script src="./html/js/main.js"></script>
+
+    <script>
+        // 测试模块加载
+        function testModuleLoading() {
+            const result = document.getElementById('moduleLoadingResult');
+            try {
+                const modules = [
+                    'CryptoManager',
+                    'TOTPGenerator', 
+                    'LocalStorageManager',
+                    'WebDAVClient',
+                    'QRScanner',
+                    'Utils',
+                    'ModuleConfig',
+                    'App',
+                    'app'
+                ];
+
+                const loaded = [];
+                const missing = [];
+
+                modules.forEach(moduleName => {
+                    if (window[moduleName]) {
+                        loaded.push(moduleName);
+                    } else {
+                        missing.push(moduleName);
+                    }
+                });
+
+                let resultText = `✅ 已加载模块 (${loaded.length}): ${loaded.join(', ')}\n`;
+                if (missing.length > 0) {
+                    resultText += `❌ 缺失模块 (${missing.length}): ${missing.join(', ')}`;
+                    result.className = 'result error';
+                } else {
+                    resultText += '🎉 所有模块加载成功！';
+                    result.className = 'result success';
+                }
+
+                result.textContent = resultText;
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `错误: ${error.message}`;
+            }
+        }
+
+        // 测试加密功能
+        async function testCrypto() {
+            const result = document.getElementById('cryptoResult');
+            try {
+                if (!window.CryptoManager) {
+                    throw new Error('CryptoManager 未加载');
+                }
+
+                const crypto = new window.CryptoManager();
+                const testData = 'Hello World!';
+                
+                const encrypted = await crypto.encrypt(testData);
+                const decrypted = await crypto.decrypt(encrypted);
+
+                if (decrypted === testData) {
+                    result.className = 'result success';
+                    result.textContent = `✅ 加密解密测试成功\n输入: "${testData}"\n输出: "${decrypted}"`;
+                } else {
+                    throw new Error('加密解密结果不匹配');
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ 加密测试失败: ${error.message}`;
+            }
+        }
+
+        // 测试TOTP功能
+        async function testTOTP() {
+            const result = document.getElementById('totpResult');
+            try {
+                if (!window.TOTPGenerator) {
+                    throw new Error('TOTPGenerator 未加载');
+                }
+
+                const totp = new window.TOTPGenerator();
+                const secret = 'JBSWY3DPEHPK3PXP'; // 测试密钥
+                
+                const code = await totp.generateTOTP(secret);
+                const timing = totp.getTimingInfo();
+
+                if (code && code.length === 6 && /^\d{6}$/.test(code)) {
+                    result.className = 'result success';
+                    result.textContent = `✅ TOTP生成成功\n验证码: ${code}\n剩余时间: ${timing.timeRemaining}秒`;
+                } else {
+                    throw new Error('TOTP格式不正确');
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ TOTP测试失败: ${error.message}`;
+            }
+        }
+
+        // 测试App实例
+        async function testApp() {
+            const result = document.getElementById('appResult');
+            try {
+                if (!window.app) {
+                    throw new Error('App实例未找到');
+                }
+
+                await window.app.init();
+                const utils = window.app.getUtils();
+                const config = window.app.getConfig();
+
+                result.className = 'result success';
+                result.textContent = `✅ App实例测试成功\n初始化状态: ${window.app.initialized}\n工具函数可用: ${!!utils}\n配置可用: ${!!config}`;
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ App测试失败: ${error.message}`;
+            }
+        }
+
+        // 测试工具函数
+        function testUtils() {
+            const result = document.getElementById('utilsResult');
+            try {
+                if (!window.Utils) {
+                    throw new Error('Utils 未加载');
+                }
+
+                const testFunctions = [
+                    'debounce',
+                    'throttle', 
+                    'formatTime',
+                    'generateId',
+                    'isValidUrl'
+                ];
+
+                const available = testFunctions.filter(fn => typeof window.Utils[fn] === 'function');
+                
+                // 测试一些函数
+                const id = window.Utils.generateId();
+                const timeFormatted = window.Utils.formatTime(125);
+                const urlValid = window.Utils.isValidUrl('https://example.com');
+
+                result.className = 'result success';
+                result.textContent = `✅ Utils测试成功\n可用函数: ${available.join(', ')}\n测试结果:\n- generateId(): ${id}\n- formatTime(125): ${timeFormatted}\n- isValidUrl(): ${urlValid}`;
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ Utils测试失败: ${error.message}`;
+            }
+        }
+
+        // 页面加载后自动运行基础测试
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testModuleLoading();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

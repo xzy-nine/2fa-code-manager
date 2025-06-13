@@ -1,5 +1,5 @@
 // 二维码扫描模块
-export class QRScanner {
+class QRScanner {
     constructor() {
         this.video = null;
         this.canvas = null;
@@ -301,17 +301,18 @@ export class QRScanner {
             capabilities.screenCapture = 'getDisplayMedia' in navigator.mediaDevices;
         } catch (error) {
             console.log('不支持屏幕录制');
-        }
-
-        return capabilities;
-    }
+        }        return capabilities;    }
 }
 
-// 导出
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = QRScanner;
-} else if (typeof window !== 'undefined') {
-    window.QRScanner = QRScanner;
-} else if (typeof globalThis !== 'undefined') {
-    globalThis.QRScanner = QRScanner;
-}
+// 全局变量导出 - 支持多种环境
+(() => {
+    const GlobalScope = (() => {
+        if (typeof globalThis !== 'undefined') return globalThis;
+        if (typeof window !== 'undefined') return window;
+        if (typeof self !== 'undefined') return self;
+        if (typeof global !== 'undefined') return global;
+        throw new Error('无法确定全局作用域');
+    })();
+    
+    GlobalScope.QRScanner = QRScanner;
+})();

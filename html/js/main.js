@@ -1,20 +1,21 @@
-// 主入口文件 - 统一管理所有模块
-// 自动初始化并导出所有功能
+// 主入口文件 - 统一管理所有模块（全局变量版本）
+// 避免ES6模块，使用全局变量系统
 
-import { CryptoManager } from './crypto.js';
-import { TOTPGenerator } from './totp.js';
-import { WebDAVClient } from './webdav.js';
-import { LocalStorageManager } from './local-storage.js';
-import { QRScanner } from './qr-scanner.js';
-import { PopupManager } from './popup.js';
-import { SettingManager } from './setting.js';
+// 获取全局作用域
+const GlobalScope = (() => {
+    if (typeof globalThis !== 'undefined') return globalThis;
+    if (typeof window !== 'undefined') return window;
+    if (typeof self !== 'undefined') return self;
+    if (typeof global !== 'undefined') return global;
+    throw new Error('无法确定全局作用域');
+})();
 
 // 版本信息
-export const VERSION = '2.0.0';
-export const BUILD_DATE = new Date().toISOString();
+const VERSION = '2.0.0';
+const BUILD_DATE = new Date().toISOString();
 
 // 模块初始化配置
-export const ModuleConfig = {
+const ModuleConfig = {
     crypto: {
         defaultKeyLength: 256,
         algorithm: 'AES-GCM'
@@ -35,7 +36,7 @@ export const ModuleConfig = {
 };
 
 // 全局工具函数
-export const Utils = {
+const Utils = {
     // 防抖函数
     debounce(func, wait) {
         let timeout;
@@ -96,12 +97,29 @@ class App {
         if (this.initialized) return;
 
         try {
+            // 检查模块是否已加载
+            if (!GlobalScope.CryptoManager) {
+                throw new Error('CryptoManager not loaded');
+            }
+            if (!GlobalScope.TOTPGenerator) {
+                throw new Error('TOTPGenerator not loaded');
+            }
+            if (!GlobalScope.WebDAVClient) {
+                throw new Error('WebDAVClient not loaded');
+            }
+            if (!GlobalScope.LocalStorageManager) {
+                throw new Error('LocalStorageManager not loaded');
+            }
+            if (!GlobalScope.QRScanner) {
+                throw new Error('QRScanner not loaded');
+            }
+
             // 初始化核心管理器
-            this.managers.crypto = new CryptoManager();
-            this.managers.totp = new TOTPGenerator();
-            this.managers.webdav = new WebDAVClient();
-            this.managers.localStorage = new LocalStorageManager();
-            this.managers.qrScanner = new QRScanner();
+            this.managers.crypto = new GlobalScope.CryptoManager();
+            this.managers.totp = new GlobalScope.TOTPGenerator();
+            this.managers.webdav = new GlobalScope.WebDAVClient();
+            this.managers.localStorage = new GlobalScope.LocalStorageManager();
+            this.managers.qrScanner = new GlobalScope.QRScanner();
 
             this.initialized = true;
             console.log('App core modules initialized successfully');
@@ -131,7 +149,8 @@ class App {
         await this.init();
         if (!this.managers.popup) {
             console.log('Initializing popup manager...');
-            this.managers.popup = new PopupManager();
+            // 使用已经创建的实例而不是新建实例
+            this.managers.popup = GlobalScope.popupManager;
         }
         return this.managers.popup;
     }
@@ -141,7 +160,8 @@ class App {
         await this.init();
         if (!this.managers.settings) {
             console.log('Initializing settings manager...');
-            this.managers.settings = new SettingManager();
+            // 使用已经创建的实例而不是新建实例
+            this.managers.settings = GlobalScope.settingManager;
         }
         return this.managers.settings;
     }
@@ -168,19 +188,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// 导出应用实例和相关类供其他模块使用
-export default app;
-
-// 核心管理器类
-export { 
-    CryptoManager as Crypto,
-    TOTPGenerator as TOTP,
-    WebDAVClient as WebDAV,
-    LocalStorageManager as Storage,
-    QRScanner as QRCode,
-    PopupManager as Popup,
-    SettingManager as Settings
-};
-
-// 工具和配置
-export { Utils, ModuleConfig as Config, VERSION };
+// 全局导出所有模块和实例
+(() => {
+    // 核心应用
+    GlobalScope.App = App;
+    GlobalScope.app = app;
+    
+    // 版本和配置
+    GlobalScope.VERSION = VERSION;
+    GlobalScope.BUILD_DATE = BUILD_DATE;
+    GlobalScope.ModuleConfig = ModuleConfig;
+    GlobalScope.Config = ModuleConfig; // 别名
+    
+    // 工具函数
+    GlobalScope.Utils = Utils;
+    
+    // 简化访问的别名（向后兼容）
+    GlobalScope.Crypto = GlobalScope.CryptoManager;
+    GlobalScope.TOTP = GlobalScope.TOTPGenerator;
+    GlobalScope.WebDAV = GlobalScope.WebDAVClient;
+    GlobalScope.Storage = GlobalScope.LocalStorageManager;
+    GlobalScope.QRCode = GlobalScope.QRScanner;
+    GlobalScope.Popup = GlobalScope.PopupManager;
+    GlobalScope.Settings = GlobalScope.SettingManager;
+})();
