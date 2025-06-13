@@ -892,61 +892,15 @@ class PopupManager {
             console.error('初始化WebDAV客户端失败:', error);
             this.webdavClient = null;
         }
-    }    // 显示消息
+    }    // 显示消息 - 使用Menu系统简化API
     showMessage(message, type = 'info') {
-        const coreUtils = getPopupCoreUtils();
-        if (!coreUtils) {
-            console.error('CoreUtils not available, using fallback implementation');
-            // 使用备用实现
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message message-${type}`;
-            messageDiv.textContent = message;
-            messageDiv.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 12px 20px;
-                background: ${type === 'error' ? '#ff4444' : type === 'success' ? '#00aa00' : '#0066cc'};
-                color: white;
-                border-radius: 4px;
-                z-index: 10000;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-                font-size: 14px;
-                max-width: 300px;
-                word-wrap: break-word;
-            `;
-            
-            document.body.appendChild(messageDiv);
-            
-            setTimeout(() => {
-                if (messageDiv.parentNode) {
-                    messageDiv.remove();
-                }
-            }, 3000);
-            return;
-        }
-        
-        const messageDiv = coreUtils.createElement('div', `message message-${type}`, {}, message);
-        
-        document.body.appendChild(messageDiv);
-        
-        setTimeout(() => {
-            messageDiv.remove();
-        }, 3000);
-    }
-
-    // 显示模态框
+        return window.GlobalScope.Menu.notify(message, type);
+    }// 显示模态框 - 使用Menu系统简化API
     showModal(title, content) {
-        const modal = document.getElementById('modal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalBody = document.getElementById('modalBody');
-        
-        modalTitle.textContent = title;
-        modalBody.innerHTML = content;
-        modal.style.display = 'block';
-    }    // 隐藏模态框
+        return window.GlobalScope.Menu.alert(title, content);
+    }    // 隐藏模态框 - Menu系统会自动处理
     hideModal() {
-        document.getElementById('modal').style.display = 'none';
+        window.GlobalScope.Menu.closeAllModals();
     }
     
     // 显示摄像头权限帮助

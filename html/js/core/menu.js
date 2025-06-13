@@ -46,16 +46,127 @@ function getCoreUtils() {
 /**
  * 菜单系统命名空间
  */
-const Menu = {/**
+const Menu = {
+  /**
+   * 显示确认对话框
+   * @param {string} title 对话框标题
+   * @param {string} message 对话框内容
+   * @param {string} confirmText 确认按钮文本，默认"确认"
+   * @param {string} cancelText 取消按钮文本，默认"取消"
+   * @param {Object} options 额外选项
+   * @returns {Promise<boolean>} 用户点击确认返回true，取消返回false
+   */
+  showConfirm: (title, message, confirmText = '确认', cancelText = '取消', options = {}) => {
+    return new Promise((resolve) => {
+      const modalId = 'confirm-modal-' + Date.now();
+      const modal = getCoreUtils().createElement('div', 'modal', { id: modalId });
+      
+      const modalContent = getCoreUtils().createElement('div', 'modal-content');
+      
+      // 模态框标题
+      const modalHeader = getCoreUtils().createElement('div', 'modal-header');
+      const modalTitle = getCoreUtils().createElement('h2', '', {}, title);
+      const modalClose = getCoreUtils().createElement('span', 'modal-close', {}, '&times;');
+      modalHeader.append(modalTitle, modalClose);
+      
+      // 模态框内容
+      const modalBody = getCoreUtils().createElement('div', 'modal-body', {}, message);
+      
+      // 按钮区域
+      const actionDiv = getCoreUtils().createElement('div', 'form-actions');
+      const cancelButton = getCoreUtils().createElement('button', 'btn', {}, cancelText);
+      const confirmButton = getCoreUtils().createElement('button', 'btn btn-primary', {}, confirmText);
+      actionDiv.append(cancelButton, confirmButton);
+      
+      modalContent.append(modalHeader, modalBody, actionDiv);
+      modal.appendChild(modalContent);
+      document.body.appendChild(modal);
+      
+      modal.style.display = 'block';
+      
+      // 添加拖动功能
+      Menu._makeModalDraggable(modal, modalContent, options);
+      Menu._centerModal(modal, modalContent);
+      
+      const close = (result) => {
+        modal.style.display = 'none';
+        setTimeout(() => {
+          if (document.body.contains(modal)) document.body.removeChild(modal);
+        }, 300);
+        resolve(result);
+      };
+      
+      confirmButton.addEventListener('click', () => close(true));
+      cancelButton.addEventListener('click', () => close(false));
+      modalClose.addEventListener('click', () => close(false));
+      modal.addEventListener('click', e => { if (e.target === modal) close(false); });
+    });
+  },
+
+  /**
+   * 显示信息模态框
+   * @param {string} title 模态框标题
+   * @param {string} content 模态框内容（支持HTML）
+   * @param {string} buttonText 按钮文本，默认"确定"
+   * @param {Object} options 额外选项
+   * @returns {Promise<void>} 用户点击按钮后resolve
+   */
+  showInfo: (title, content, buttonText = '确定', options = {}) => {
+    return new Promise((resolve) => {
+      const modalId = 'info-modal-' + Date.now();
+      const modal = getCoreUtils().createElement('div', 'modal', { id: modalId });
+      
+      const modalContent = getCoreUtils().createElement('div', 'modal-content');
+      
+      // 模态框标题
+      const modalHeader = getCoreUtils().createElement('div', 'modal-header');
+      const modalTitle = getCoreUtils().createElement('h2', '', {}, title);
+      const modalClose = getCoreUtils().createElement('span', 'modal-close', {}, '&times;');
+      modalHeader.append(modalTitle, modalClose);
+      
+      // 模态框内容
+      const modalBody = getCoreUtils().createElement('div', 'modal-body');
+      modalBody.innerHTML = content;
+      
+      // 按钮区域
+      const actionDiv = getCoreUtils().createElement('div', 'form-actions');
+      const okButton = getCoreUtils().createElement('button', 'btn btn-primary', {}, buttonText);
+      actionDiv.appendChild(okButton);
+      
+      modalContent.append(modalHeader, modalBody, actionDiv);
+      modal.appendChild(modalContent);
+      document.body.appendChild(modal);
+      
+      modal.style.display = 'block';
+      
+      // 添加拖动功能
+      Menu._makeModalDraggable(modal, modalContent, options);
+      Menu._centerModal(modal, modalContent);
+      
+      const close = () => {
+        modal.style.display = 'none';
+        setTimeout(() => {
+          if (document.body.contains(modal)) document.body.removeChild(modal);
+        }, 300);
+        resolve();
+      };
+      
+      okButton.addEventListener('click', close);
+      modalClose.addEventListener('click', close);
+      modal.addEventListener('click', e => { if (e.target === modal) close(); });
+    });
+  },
+  /**
    * 显示表单模态框
    * @param {string} title 模态框标题
-   * @param {Array} formItems 表单项配置数�?
+   * @param {Array} formItems 表单项配置数组
    * @param {Function} onConfirm 确认回调函数
    * @param {string} confirmText 确认按钮文本
    * @param {string} cancelText 取消按钮文本
    * @param {Object} options 额外选项：{gridSnap: boolean, draggable: boolean}
    * @returns {Object} 模态框控制对象: {close, enableGridSnap, disableGridSnap}
-   */  showFormModal: (title, formItems, onConfirm, confirmText, cancelText, options = {}) => {
+   */
+  showFormModal: (title, formItems, onConfirm, confirmText, cancelText, options = {}) => {
     const modalId = 'form-modal-' + Date.now();
     const modal = getCoreUtils().createElement('div', 'modal', { id: modalId });
     
@@ -1052,7 +1163,243 @@ const Menu = {/**
     };
   },
 
-  // ...existing code...
+  /**
+   * 显示消息通知
+   * @param {string} message 消息内容
+   * @param {string} type 消息类型：'info', 'success', 'warning', 'error'
+   * @param {number} duration 显示时长（毫秒），默认3000
+   * @param {Object} options 额外选项
+   * @returns {HTMLElement} 消息元素
+   */
+  showMessage: (message, type = 'info', duration = 3000, options = {}) => {
+    const messageId = 'message-' + Date.now();
+    const messageDiv = getCoreUtils().createElement('div', `message message-${type}`, { id: messageId });
+    
+    // 设置消息内容
+    messageDiv.textContent = message;
+    
+    // 设置样式
+    const typeColors = {
+      info: '#0066cc',
+      success: '#00aa00',
+      warning: '#ff8800',
+      error: '#ff4444'
+    };
+    
+    messageDiv.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      background: ${typeColors[type] || typeColors.info};
+      color: white;
+      border-radius: 4px;
+      z-index: 10000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      font-size: 14px;
+      max-width: 300px;
+      word-wrap: break-word;
+      opacity: 0;
+      transform: translateX(100%);
+      transition: all 0.3s ease-out;
+    `;
+    
+    document.body.appendChild(messageDiv);
+    
+    // 动画显示
+    setTimeout(() => {
+      messageDiv.style.opacity = '1';
+      messageDiv.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // 自动隐藏
+    if (duration > 0) {
+      setTimeout(() => {
+        messageDiv.style.opacity = '0';
+        messageDiv.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+          if (document.body.contains(messageDiv)) {
+            document.body.removeChild(messageDiv);
+          }
+        }, 300);
+      }, duration);
+    }
+    
+    return messageDiv;
+  },
+  /**
+   * 关闭所有模态框
+   */
+  closeAllModals: () => {
+    // 关闭所有Menu系统创建的模态框
+    document.querySelectorAll('.modal[id^="form-modal-"], .modal[id^="confirm-modal-"], .modal[id^="info-modal-"], .modal[id^="image-selector-modal"]').forEach(modal => {
+      modal.style.display = 'none';
+      setTimeout(() => {
+        if (document.body.contains(modal)) {
+          document.body.removeChild(modal);
+        }
+      }, 300);
+    });
+    
+    // 隐藏网格提示
+    Menu._hideGridHint();
+  },
+
+  /**
+   * 创建简单的输入对话框
+   * @param {string} title 对话框标题
+   * @param {string} label 输入框标签
+   * @param {string} placeholder 输入框占位符
+   * @param {string} defaultValue 默认值
+   * @param {string} inputType 输入类型，默认'text'
+   * @param {Object} options 额外选项
+   * @returns {Promise<string|null>} 用户输入的值，取消返回null
+   */
+  showPrompt: (title, label, placeholder = '', defaultValue = '', inputType = 'text', options = {}) => {
+    return new Promise((resolve) => {
+      const formItems = [
+        {
+          id: 'promptInput',
+          label: label,
+          type: inputType,
+          placeholder: placeholder,
+          value: defaultValue,
+          required: true
+        }
+      ];
+      
+      const modalControls = Menu.showFormModal(
+        title,
+        formItems,
+        (formData) => {
+          resolve(formData.promptInput || null);
+        },
+        options.confirmText || '确认',
+        options.cancelText || '取消',
+        options
+      );
+      
+      // 如果用户关闭模态框（而不是点击按钮），返回null
+      const originalClose = modalControls.close;
+      modalControls.close = () => {
+        originalClose();
+        resolve(null);
+      };
+    });
+  },
+
+  /**
+   * 创建多选对话框
+   * @param {string} title 对话框标题
+   * @param {Array} options 选项数组：[{value: '', label: '', selected: false}]
+   * @param {Object} modalOptions 模态框选项
+   * @returns {Promise<Array|null>} 用户选择的值数组，取消返回null
+   */
+  showMultiSelect: (title, options, modalOptions = {}) => {
+    return new Promise((resolve) => {
+      const formItems = options.map((option, index) => ({
+        id: `option_${index}`,
+        label: option.label,
+        type: 'checkbox',
+        value: option.selected || false
+      }));
+      
+      const modalControls = Menu.showFormModal(
+        title,
+        formItems,
+        (formData) => {
+          const selectedValues = [];
+          options.forEach((option, index) => {
+            if (formData[`option_${index}`]) {
+              selectedValues.push(option.value);
+            }
+          });
+          resolve(selectedValues);
+        },
+        modalOptions.confirmText || '确认',
+        modalOptions.cancelText || '取消',
+        modalOptions
+      );
+      
+      // 如果用户关闭模态框（而不是点击按钮），返回null
+      const originalClose = modalControls.close;
+      modalControls.close = () => {
+        originalClose();
+        resolve(null);
+      };
+    });
+  },
+
+  // === 简化API ===
+  
+  /**
+   * 快速创建简单的表单对话框
+   * @param {string} title 标题
+   * @param {Object} fields 字段配置 {fieldName: {label, type, placeholder, required}}
+   * @param {Function} onSubmit 提交回调
+   * @returns {Object} 模态框控制对象
+   */
+  createForm: (title, fields, onSubmit) => {
+    const formItems = Object.entries(fields).map(([fieldName, config]) => ({
+      id: fieldName,
+      label: config.label || fieldName,
+      type: config.type || 'text',
+      placeholder: config.placeholder || '',
+      required: config.required || false,
+      value: config.value || ''
+    }));
+    
+    return Menu.showFormModal(title, formItems, onSubmit);
+  },
+
+  /**
+   * 快速创建确认按钮的信息对话框
+   * @param {string} title 标题
+   * @param {string} message 消息内容
+   * @param {Function} onConfirm 确认回调（可选）
+   * @returns {Promise<void>}
+   */
+  alert: (title, message, onConfirm) => {
+    const promise = Menu.showInfo(title, message);
+    if (typeof onConfirm === 'function') {
+      promise.then(onConfirm);
+    }
+    return promise;
+  },
+
+  /**
+   * 快速创建确认/取消对话框
+   * @param {string} message 消息内容
+   * @param {Function} onConfirm 确认回调（可选）
+   * @param {Function} onCancel 取消回调（可选）
+   * @returns {Promise<boolean>}
+   */
+  confirm: (message, onConfirm, onCancel) => {
+    const promise = Menu.showConfirm('确认', message);
+    if (typeof onConfirm === 'function' || typeof onCancel === 'function') {
+      promise.then(result => {
+        if (result && typeof onConfirm === 'function') {
+          onConfirm();
+        } else if (!result && typeof onCancel === 'function') {
+          onCancel();
+        }
+      });
+    }
+    return promise;
+  },
+
+  /**
+   * 快速显示消息通知
+   * @param {string} message 消息内容
+   * @param {string} type 消息类型
+   * @param {number} duration 显示时长
+   * @returns {HTMLElement}
+   */
+  notify: (message, type = 'info', duration = 3000) => {
+    return Menu.showMessage(message, type, duration);
+  },
+
+  
 };
 
 // 只在 DOM 环境中执行初始化代码
@@ -1084,6 +1431,49 @@ if (typeof document !== 'undefined') {
 if (typeof window !== 'undefined') {
   window.GlobalScope = window.GlobalScope || {};
   window.GlobalScope.Menu = Menu;
+  
+  // 开发环境测试工具
+  console.log('Menu system loaded successfully');
+  
+  // 添加全局快速访问
+  window.Menu = Menu;
+  
+  // 提供控制台测试功能
+  window.testMenuFeatures = () => {
+    console.log('=== Menu System Test ===');
+    
+    // 测试消息通知
+    Menu.notify('测试消息通知', 'info');
+    
+    setTimeout(() => {
+      // 测试确认对话框
+      Menu.confirm('这是一个测试确认对话框，请选择')
+        .then(result => {
+          Menu.notify(`您选择了: ${result ? '确认' : '取消'}`, result ? 'success' : 'warning');
+        });
+    }, 1000);
+    
+    setTimeout(() => {
+      // 测试信息对话框
+      Menu.alert('测试完成', '所有Menu系统功能测试完成！<br><strong>系统运行正常</strong>');
+    }, 3000);
+    
+    setTimeout(() => {
+      // 测试表单对话框
+      Menu.createForm('测试表单', {
+        name: { label: '姓名', type: 'text', required: true, placeholder: '请输入姓名' },
+        email: { label: '邮箱', type: 'email', placeholder: '请输入邮箱' },
+        age: { label: '年龄', type: 'number', placeholder: '请输入年龄' }
+      }, (data) => {
+        Menu.notify(`表单提交成功: ${JSON.stringify(data)}`, 'success');
+      });
+    }, 5000);
+  };
+  
+  // 自动运行一个简单测试
+  setTimeout(() => {
+    console.log('要测试Menu系统，请在控制台运行: testMenuFeatures()');
+  }, 100);
 } else if (typeof global !== 'undefined') {
   global.GlobalScope = global.GlobalScope || {};
   global.GlobalScope.Menu = Menu;

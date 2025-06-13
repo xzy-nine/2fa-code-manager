@@ -574,9 +574,10 @@ class SettingManager {
             if (!this.webdavClient) {
                 this.showMessage('WebDAV客户端未初始化，请先保存WebDAV设置', 'warning');
                 return;
-            }
-
-            if (!confirm('从云端恢复会与本地配置合并，是否继续？')) {
+            }            // 使用Menu系统的确认对话框简化API
+            const confirmed = await window.GlobalScope.Menu.confirm('从云端恢复会与本地配置合并，是否继续？');
+            
+            if (!confirmed) {
                 return;
             }
 
@@ -779,7 +780,10 @@ class SettingManager {
         }
     }    // 删除配置
     async deleteConfig(index) {
-        if (!confirm('确定要删除这个配置吗？')) {
+        // 使用Menu系统的确认对话框简化API
+        const confirmed = await window.GlobalScope.Menu.confirm('确定要删除这个配置吗？');
+        
+        if (!confirmed) {
             return;
         }
 
@@ -885,30 +889,9 @@ class SettingManager {
             console.error(`获取存储数据失败 (${key}):`, error);
             return null;
         }
-    }
-
-    // 显示消息提示
+    }    // 显示消息提示 - 使用Menu系统简化API
     showMessage(message, type = 'info', duration = 3000) {
-        // 移除现有消息
-        const existingMessage = document.querySelector('.message');
-        if (existingMessage) {
-            existingMessage.remove();
-        }
-
-        // 创建新消息
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message message-${type}`;
-        messageDiv.textContent = message;
-        
-        // 添加到页面
-        document.body.appendChild(messageDiv);
-        
-        // 自动移除
-        setTimeout(() => {
-            if (messageDiv.parentNode) {
-                messageDiv.remove();
-            }
-        }, duration);
+        return window.GlobalScope.Menu.notify(message, type, duration);
     }
 
     // HTML转义函数
