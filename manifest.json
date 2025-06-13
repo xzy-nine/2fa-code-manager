@@ -1,6 +1,6 @@
 {  "manifest_version": 3,
   "name": "2FA 验证码管家",
-  "version": "1.0.1",
+  "version": "0.0.1",
   "description": "安全的2FA验证码存储和自动填充扩展，支持WebDAV云端同步",  "permissions": [
     "storage",
     "tabs",
