@@ -146,7 +146,6 @@
 ├── html/
 │   ├── popup.html              # 弹出页面
 │   ├── setting.html            # 设置页面
-│   ├── test-modules.html       # 模块测试页面
 │   └── js/
 │       ├── index.js            # 核心入口文件 - 统一导出所有模块
 │       ├── crypto.js           # 加密解密模块
@@ -176,12 +175,14 @@
 项目已从ES6模块系统迁移到全局变量模块系统，以确保与Chrome扩展的Service Worker环境完全兼容：
 
 #### 主要改进
+
 - ✅ **Service Worker兼容**: 完全支持Chrome扩展的Service Worker环境
 - ✅ **无ES6依赖**: 避免了ES6模块的兼容性问题
 - ✅ **统一加载**: 通过全局变量统一管理所有模块
 - ✅ **向后兼容**: 保留了原有的API接口
 
 #### 模块加载方式
+
 ```html
 <!-- 按依赖顺序加载 -->
 <script src="./js/crypto.js"></script>
@@ -195,6 +196,7 @@
 ```
 
 #### 使用方式
+
 ```javascript
 // 直接使用全局变量
 const crypto = new CryptoManager();
