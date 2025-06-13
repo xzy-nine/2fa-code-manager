@@ -5,7 +5,7 @@ on:
     inputs:
       target:
         description: '目标版本或标签（如：v1.0.0、latest 或 all）'
-        required: true
+        required: false
         type: string
         default: 'latest'
   workflow_call:
@@ -189,11 +189,18 @@ jobs:
             --event-name "workflow_call" \
             --repo "${{ github.repository }}" \
             --github-token "${{ secrets.PAT }}" \
-            --deepseek-api-key "${{ secrets.DEEPSEEK_API_KEY }}"
-        else
+            --deepseek-api-key "${{ secrets.DEEPSEEK_API_KEY }}" \
+          else
           # 手动触发模式
           echo "📝 执行模式: 手动触发 (workflow_dispatch)"
           echo "🎯 目标参数: ${{ inputs.target }}"
+          
+          # 检查target参数是否为空
+          if [ -z "${{ inputs.target }}" ]; then
+            echo "❌ 错误: 手动模式需要提供target参数"
+            echo "💡 提示: 请在手动触发时指定目标版本（如: latest, all, v1.0.0）"
+            exit 1
+          fi
           
           # 根据目标类型输出不同提示
           if [ "${{ inputs.target }}" = "all" ]; then
