@@ -174,7 +174,7 @@ jobs:
         cd .github/workflows/ai-log-work-py
         
         echo "🚀 开始执行AI变更日志生成..."
-        echo "==========================================​============================="
+        echo "================================================================"
         
         # 根据触发方式设置参数
         if [ "${{ github.event_name }}" = "workflow_call" ]; then
@@ -182,8 +182,8 @@ jobs:
           echo "🤖 执行模式: 自动触发 (workflow_call)"
           echo "📋 版本号: ${{ inputs.version }}"
           echo "🏷️ Release ID: ${{ inputs.release-id }}"
-          echo "============================================​========================="
-            python changelog.py \
+          echo "================================================================"
+          python changelog.py \
             --version "${{ inputs.version }}" \
             --release-id "${{ inputs.release-id }}" \
             --event-name "workflow_call" \
@@ -195,27 +195,27 @@ jobs:
           echo "📝 执行模式: 手动触发 (workflow_dispatch)"
           echo "🎯 目标参数: ${{ inputs.target }}"
           
-          # 检查target参数是否为空
-          if [ -z "${{ inputs.target }}" ]; then
-            echo "❌ 错误: 手动模式需要提供target参数"
-            echo "💡 提示: 请在手动触发时指定目标版本（如: latest, all, v1.0.0）"
-            exit 1
+          # 检查target参数是否为空，并设置默认值
+          TARGET="${{ inputs.target }}"
+          if [ -z "$TARGET" ]; then
+            echo "⚠️ 警告: target参数为空，使用默认值 'latest'"
+            TARGET="latest"
           fi
           
           # 根据目标类型输出不同提示
-          if [ "${{ inputs.target }}" = "all" ]; then
+          if [ "$TARGET" = "all" ]; then
             echo "🔄 批量处理模式：将处理所有Release"
             echo "⏱️ 预计需要较长时间，请耐心等待..."
             echo "📊 实时进度将在下方显示"
-          elif [ "${{ inputs.target }}" = "latest" ]; then
+          elif [ "$TARGET" = "latest" ]; then
             echo "🎯 单个处理模式：处理最新Release"
           else
-            echo "🎯 单个处理模式：处理指定版本 ${{ inputs.target }}"
+            echo "🎯 单个处理模式：处理指定版本 $TARGET"
           fi
           
-          echo "============================================​========================="
-            python changelog.py \
-            --target "${{ inputs.target }}" \
+          echo "================================================================"
+          python changelog.py \
+            --target "$TARGET" \
             --event-name "workflow_dispatch" \
             --repo "${{ github.repository }}" \
             --github-token "${{ secrets.PAT }}" \
@@ -226,7 +226,7 @@ jobs:
         exit_code=$?
         
         echo ""
-        echo "============================================​========================="
+        echo "================================================================"
         
         # 设置输出变量和最终状态
         if [ $exit_code -eq 0 ]; then
@@ -239,7 +239,7 @@ jobs:
           echo "❌ 状态: 失败 (退出码: $exit_code)"
         fi
         
-        echo "============================================​========================="
+        echo "================================================================"
         
         exit $exit_code
 
