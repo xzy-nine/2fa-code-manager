@@ -9,6 +9,7 @@ const CoreUtils = GlobalScope.CoreUtils;
 const Crypto = GlobalScope.CryptoManager;
 const WebDAV = GlobalScope.WebDAVClient;
 const Storage = GlobalScope.LocalStorageManager;
+const DeviceAuth = GlobalScope.DeviceAuthenticator;
 
 // 使用全局工具函数（在main.js中定义）
 // Utils 已经在全局作用域中可用，无需重新声明
@@ -19,6 +20,7 @@ class SettingManager {
         this.localStorageManager = new Storage();
         this.cryptoManager = new Crypto();
         this.webdavClient = new WebDAV();
+        this.deviceAuthenticator = GlobalScope.deviceAuthenticator || new DeviceAuth();
         this.init();
     }
 
@@ -82,9 +84,9 @@ class SettingManager {
             <header class="header">
                 <h1>设置</h1>
                 <button id="backButton" class="back-button">返回</button>
-            </header>
-              <main class="settings-content">
+            </header>              <main class="settings-content">
                 ${this.renderThemeSection()}
+                ${this.renderDeviceAuthSection()}
                 ${this.renderWebDAVSection()}
                 ${this.renderEncryptionSection()}
                 ${this.renderLocalStorageSection()}
@@ -118,9 +120,7 @@ class SettingManager {
                 <button id="saveWebdav" class="btn btn-primary">保存WebDAV设置</button>
             </section>
         `;
-    }
-
-    // 渲染加密设置区域
+    }    // 渲染加密设置区域
     renderEncryptionSection() {
         return `
             <section class="settings-section">
@@ -129,13 +129,6 @@ class SettingManager {
                     <label for="encryptionKey">自定义加密密钥</label>
                     <input type="password" id="encryptionKey" placeholder="留空使用简单加密">
                     <small>输入强密码以提供更高安全性</small>
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="enableBiometric">
-                        启用生物识别验证
-                    </label>
-                    <small>使用Windows Hello等进行身份验证</small>
                 </div>
                 <button id="saveEncryption" class="btn btn-primary">保存加密设置</button>
             </section>
@@ -257,15 +250,22 @@ class SettingManager {
                 <button id="saveTheme" class="btn btn-primary">保存主题设置</button>
             </section>
         `;
-    }
-
-    initElements() {
+    }    initElements() {
         // 获取所有DOM元素        
         this.elements = {
             backButton: document.getElementById('backButton'),
             // 主题设置
             themeSelect: document.getElementById('themeSelect'),
             saveThemeButton: document.getElementById('saveTheme'),
+            // 设备验证器设置
+            enableDeviceAuth: document.getElementById('enableDeviceAuth'),
+            deviceAuthDetails: document.getElementById('deviceAuthDetails'),
+            deviceSupportStatus: document.getElementById('deviceSupportStatus'),
+            credentialStatus: document.getElementById('credentialStatus'),
+            testDeviceAuth: document.getElementById('testDeviceAuth'),
+            resetCredentials: document.getElementById('resetCredentials'),
+            authTimeout: document.getElementById('authTimeout'),
+            saveDeviceAuth: document.getElementById('saveDeviceAuth'),
             // WebDAV设置
             testWebdavButton: document.getElementById('testWebdav'),
             saveWebdavButton: document.getElementById('saveWebdav'),
@@ -297,6 +297,12 @@ class SettingManager {
         // 主题设置
         this.elements.saveThemeButton?.addEventListener('click', () => this.saveThemeSettings());
         this.elements.themeSelect?.addEventListener('change', () => this.applyTheme());
+
+        // 设备验证器设置
+        this.elements.enableDeviceAuth?.addEventListener('change', (e) => this.toggleDeviceAuth(e.target.checked));
+        this.elements.testDeviceAuth?.addEventListener('click', () => this.testDeviceAuth());
+        this.elements.resetCredentials?.addEventListener('click', () => this.resetDeviceCredentials());
+        this.elements.saveDeviceAuth?.addEventListener('click', () => this.saveDeviceAuthSettings());
 
         // 测试WebDAV连接
         this.elements.testWebdavButton?.addEventListener('click', () => this.testWebDAVConnection());
@@ -505,573 +511,568 @@ class SettingManager {
         }
     }
 
-    showAddConfigModal() {
-        if (this.elements.addConfigModal) {
-            this.elements.addConfigModal.style.display = 'block';
-        }
-    }
-
-    hideAddConfigModal() {
-        if (this.elements.addConfigModal) {
-            this.elements.addConfigModal.style.display = 'none';
-        }
-    }    async saveNewConfig() {
-        const name = document.getElementById('configName')?.value;
-        const secret = document.getElementById('configSecret')?.value;
-        const issuer = document.getElementById('configIssuer')?.value;
-        const account = document.getElementById('configAccount')?.value;
-        const digits = document.getElementById('configDigits')?.value;
-        const period = document.getElementById('configPeriod')?.value;
-
-        if (!name || !secret) {
-            this.showMessage('请填写配置名称和密钥', 'error');
-            return;
-        }
-
-        try {
-            const config = {
-                name: name,
-                secret: secret,
-                issuer: issuer || '',
-                account: account || '',
-                digits: parseInt(digits) || 6,
-                period: parseInt(period) || 30,
-                type: 'totp'
-            };
-
-            // 优先保存到本地存储
-            const result = await this.localStorageManager.addLocalConfig(config);
-            if (result.success) {
-                this.showMessage('配置已保存到本地', 'success');
+    // 渲染设备验证器设置区域
+    renderDeviceAuthSection() {
+        return `            <section class="settings-section">
+                <h2>设备验证器设置</h2>
+                <div class="info-box">
+                    <p><strong>设备验证器</strong>允许您使用生物识别验证（如Windows Hello、指纹或面部识别）来保护您的2FA验证码。</p>
+                    <p><strong>注意：</strong>关闭此开关只会暂停功能，不会删除已注册的凭据。重新启用时将继续使用现有凭据。</p>
+                </div>
                 
-                // 自动备份到云端（如果配置了WebDAV）
-                this.backupToCloud(result.config);
+                <div class="device-auth-settings">
+                    <div class="form-group">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="enableDeviceAuth">
+                            <span class="slider"></span>
+                            <span class="label-text">启用设备验证器</span>
+                        </label>
+                        <small>使用Windows Hello等生物识别验证访问验证码（关闭开关不会删除凭据）</small>
+                    </div>
+                    
+                    <div id="deviceAuthDetails" class="device-auth-details" style="display: none;">
+                        <div class="auth-status-card">
+                            <h4>设备支持状态</h4>
+                            <div id="deviceSupportStatus" class="status-info">
+                                <div class="loading">检查设备支持情况...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="auth-credentials-card">
+                            <h4>认证凭据管理</h4>
+                            <div id="credentialStatus" class="status-info">
+                                <div class="loading">检查凭据状态...</div>
+                            </div>                            <div class="credential-actions">
+                                <button id="testDeviceAuth" class="btn btn-secondary">测试验证</button>
+                                <button id="resetCredentials" class="btn btn-warning" title="完全删除已注册的生物识别信息，需要重新注册">重置凭据</button>
+                            </div>
+                            <div class="credential-note">
+                                <small><strong>提示：</strong>重置凭据将完全删除生物识别信息，仅在遇到问题时使用。简单开关功能不会删除凭据。</small>
+                            </div>
+                        </div>
+                        
+                        <div class="auth-settings-card">
+                            <h4>验证设置</h4>
+                            <div class="form-group">
+                                <label for="authTimeout">认证有效期（分钟）</label>
+                                <select id="authTimeout">
+                                    <option value="5">5分钟</option>
+                                    <option value="15" selected>15分钟</option>
+                                    <option value="30">30分钟</option>
+                                    <option value="60">1小时</option>
+                                </select>
+                                <small>认证成功后的有效时间，过期需要重新验证</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
-                this.hideAddConfigModal();
-                this.clearConfigForm();
-                this.resetSaveButton();
-                await this.updateConfigList();
-            } else {
-                this.showMessage('添加失败: ' + result.message, 'error');
-            }
-        } catch (error) {
-            this.showMessage('添加失败: ' + error.message, 'error');
-        }
+                <div class="button-group">
+                    <button id="saveDeviceAuth" class="btn btn-primary">保存设备验证器设置</button>
+                </div>
+            </section>
+        `;
     }
 
-    // 重置保存按钮状态
-    resetSaveButton() {
-        const saveButton = document.getElementById('saveConfig');
-        if (saveButton) {
-            saveButton.textContent = '保存';
-            saveButton.onclick = () => this.saveNewConfig();
-        }
-    }    // 自动备份到云端
-    async backupToCloud(config) {
-        try {
-            // 检查WebDAV是否已配置
-            const webdavConfig = await this.getStorageData('webdavConfig');
-            if (!webdavConfig || !webdavConfig.url || !webdavConfig.username || !webdavConfig.password) {
-                console.log('WebDAV未配置，跳过自动备份');
-                return;
-            }
-
-            if (this.webdavClient) {
-                const backupResult = await this.webdavClient.addConfig(config);
-                if (backupResult.success) {
-                    this.showMessage('已自动备份到云端', 'info', 2000);
-                } else {
-                    console.warn('云端备份失败:', backupResult.message);
-                    this.showMessage('云端备份失败，但本地已保存', 'warning', 3000);
-                }
-            } else {
-                console.log('WebDAV客户端未初始化，跳过自动备份');
-            }
-        } catch (error) {
-            console.warn('云端备份出错:', error);
-            // 备份失败不影响主要功能
-        }
-    }clearConfigForm() {
-        const fields = ['configName', 'configSecret', 'configIssuer', 'configAccount', 'configDigits', 'configPeriod'];
-        fields.forEach(fieldId => {
-            const field = document.getElementById(fieldId);
-            if (field) {
-                if (field.type === 'checkbox') {
-                    field.checked = false;
-                } else if (field.tagName === 'SELECT') {
-                    field.selectedIndex = 0;
-                } else {
-                    field.value = fieldId === 'configDigits' ? '6' : (fieldId === 'configPeriod' ? '30' : '');
-                }
-            }
-        });
-    }    async exportConfigs() {
-        try {
-            const configs = await this.localStorageManager.getAllLocalConfigs();
-            const dataStr = JSON.stringify(configs, null, 2);
-            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-            
-            const exportFileDefaultName = `2fa-configs-${new Date().toISOString().split('T')[0]}.json`;
-            
-            const linkElement = CoreUtils.createElement('a', '', {
-                href: dataUri,
-                download: exportFileDefaultName
-            });
-            linkElement.click();
-            
-            this.showMessage('配置已导出', 'success');
-        } catch (error) {
-            this.showMessage('导出失败: ' + error.message, 'error');
-        }
-    }
-
-    async importConfigs() {
-        const input = CoreUtils.createElement('input', '', {
-            type: 'file',
-            accept: '.json'
-        });
-        
-        input.onchange = (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    try {
-                        const configs = JSON.parse(e.target.result);
-                        let successCount = 0;
-                        
-                        for (const config of configs) {
-                            const result = await this.localStorageManager.addLocalConfig(config);
-                            if (result.success) {
-                                successCount++;
-                            }
-                        }
-                        
-                        this.showMessage(`成功导入 ${successCount} 个配置`, 'success');
-                    } catch (error) {
-                        this.showMessage('导入失败: ' + error.message, 'error');
-                    }
-                };
-                reader.readAsText(file);
-            }
+    initElements() {
+        // 获取所有DOM元素        
+        this.elements = {
+            backButton: document.getElementById('backButton'),
+            // 主题设置
+            themeSelect: document.getElementById('themeSelect'),
+            saveThemeButton: document.getElementById('saveTheme'),
+            // WebDAV设置
+            testWebdavButton: document.getElementById('testWebdav'),
+            saveWebdavButton: document.getElementById('saveWebdav'),
+            // 加密设置
+            saveEncryptionButton: document.getElementById('saveEncryption'),
+            // 本地存储设置
+            saveLocalStorageButton: document.getElementById('saveLocalStorage'),
+            // 配置管理
+            addConfigButton: document.getElementById('addConfig'),
+            exportConfigsButton: document.getElementById('exportConfigs'),
+            importConfigsButton: document.getElementById('importConfigs'),
+            backupToCloudButton: document.getElementById('backupToCloud'),
+            restoreFromCloudButton: document.getElementById('restoreFromCloud'),
+            validateConfigsButton: document.getElementById('validateConfigs'),
+            // 添加配置模态框
+            addConfigModal: document.getElementById('addConfigModal'),
+            closeModal: document.querySelector('.close'),
+            saveConfigButton: document.getElementById('saveConfig'),
+            cancelConfigButton: document.getElementById('cancelConfig'),
+            // 设备验证器设置
+            enableDeviceAuth: document.getElementById('enableDeviceAuth'),
+            testDeviceAuthButton: document.getElementById('testDeviceAuth'),
+            resetCredentialsButton: document.getElementById('resetCredentials'),
+            authTimeout: document.getElementById('authTimeout'),
+            deviceSupportStatus: document.getElementById('deviceSupportStatus'),
+            credentialStatus: document.getElementById('credentialStatus')
         };
+    }
+
+    initEventListeners() {
+        // 返回按钮
+        this.elements.backButton?.addEventListener('click', () => {
+            window.close();
+        });
+
+        // 主题设置
+        this.elements.saveThemeButton?.addEventListener('click', () => this.saveThemeSettings());
+        this.elements.themeSelect?.addEventListener('change', () => this.applyTheme());
+
+        // 设备验证器设置
+        this.elements.enableDeviceAuth?.addEventListener('change', (e) => this.toggleDeviceAuth(e.target.checked));
+        this.elements.testDeviceAuth?.addEventListener('click', () => this.testDeviceAuth());
+        this.elements.resetCredentials?.addEventListener('click', () => this.resetDeviceCredentials());
+        this.elements.saveDeviceAuth?.addEventListener('click', () => this.saveDeviceAuthSettings());
+
+        // 测试WebDAV连接
+        this.elements.testWebdavButton?.addEventListener('click', () => this.testWebDAVConnection());
         
-        input.click();
-    }    // 备份本地配置到云端
-    async backupToCloud() {
-        try {
-            // 检查WebDAV是否已配置
-            const webdavConfig = await this.getStorageData('webdavConfig');
-            if (!webdavConfig || !webdavConfig.url || !webdavConfig.username || !webdavConfig.password) {
-                this.showMessage('请先在WebDAV同步设置中配置服务器地址、用户名和密码', 'warning');
-                return;
-            }
+        // 保存WebDAV设置
+        this.elements.saveWebdavButton?.addEventListener('click', () => this.saveWebDAVSettings());
+        
+        // 保存加密设置
+        this.elements.saveEncryptionButton?.addEventListener('click', () => this.saveEncryptionSettings());
+        
+        // 保存本地存储设置
+        this.elements.saveLocalStorageButton?.addEventListener('click', () => this.saveLocalStorageSettings());
+        
+        // 添加配置
+        this.elements.addConfigButton?.addEventListener('click', () => this.showAddConfigModal());
+        
+        // 导出配置
+        this.elements.exportConfigsButton?.addEventListener('click', () => this.exportConfigs());
+          // 导入配置
+        this.elements.importConfigsButton?.addEventListener('click', () => this.importConfigs());
+        
+        // 备份到云端
+        this.elements.backupToCloudButton?.addEventListener('click', () => this.backupToCloud());
+        
+        // 从云端恢复
+        this.elements.restoreFromCloudButton?.addEventListener('click', () => this.restoreFromCloud());
+        
+        // 验证配置
+        this.elements.validateConfigsButton?.addEventListener('click', () => this.validateConfigs());
+        
+        // 模态框事件
+        this.elements.closeModal?.addEventListener('click', () => this.hideAddConfigModal());
+        this.elements.cancelConfigButton?.addEventListener('click', () => this.hideAddConfigModal());
+        this.elements.saveConfigButton?.addEventListener('click', () => this.saveNewConfig());
 
-            if (!this.webdavClient) {
-                this.showMessage('WebDAV客户端未初始化，请先保存WebDAV设置', 'warning');
-                return;
-            }
+        // 设备验证器设置
+        this.elements.enableDeviceAuth?.addEventListener('change', () => this.toggleDeviceAuthSettings());
+        this.elements.testDeviceAuthButton?.addEventListener('click', () => this.testDeviceAuth());
+        this.elements.resetCredentialsButton?.addEventListener('click', () => this.resetCredentials());
+        this.elements.authTimeout?.addEventListener('change', () => this.saveDeviceAuthSettings());
+    }
 
-            this.showMessage('正在备份到云端...', 'info');
-            
-            // 获取所有本地配置
-            const localConfigs = await this.localStorageManager.getAllLocalConfigs();
-            
-            if (localConfigs.length === 0) {
-                this.showMessage('没有本地配置需要备份', 'info');
-                return;
-            }
+    async testWebDAVConnection() {
+        const url = document.getElementById('webdavUrl')?.value;
+        const username = document.getElementById('webdavUsername')?.value;
+        const password = document.getElementById('webdavPassword')?.value;
 
-            let successCount = 0;
-            let failCount = 0;
-
-            // 逐个备份配置
-            for (const config of localConfigs) {
-                try {
-                    const result = await this.webdavClient.addConfig(config.config || config);
-                    if (result.success) {
-                        successCount++;
-                    } else {
-                        failCount++;
-                        console.warn('备份配置失败:', config.name, result.message);
-                    }
-                } catch (error) {
-                    failCount++;
-                    console.error('备份配置出错:', config.name, error);
-                }
-            }
-
-            if (failCount === 0) {
-                this.showMessage(`成功备份 ${successCount} 个配置到云端`, 'success');
-            } else {
-                this.showMessage(`备份完成：成功 ${successCount} 个，失败 ${failCount} 个`, 'warning');
-            }        } catch (error) {
-            console.error('备份到云端失败:', error);
-            
-            let errorMessage = '备份失败: ';
-            
-            // 根据不同的错误类型提供更具体的错误信息
-            if (error.message === 'Failed to fetch') {
-                errorMessage += '网络连接失败，请检查：\n' +
-                              '1. WebDAV服务器地址是否正确\n' +
-                              '2. 网络连接是否正常\n' +
-                              '3. 服务器是否支持CORS跨域请求\n' +
-                              '4. 防火墙是否阻止了连接';
-            } else if (error.message.includes('401')) {
-                errorMessage += 'WebDAV认证失败，请检查用户名和密码';
-            } else if (error.message.includes('404')) {
-                errorMessage += 'WebDAV服务器路径不存在，请检查服务器配置';
-            } else if (error.message.includes('timeout')) {
-                errorMessage += '连接超时，请检查网络或服务器状态';
-            } else {
-                errorMessage += error.message;
-            }
-            
-            this.showMessage(errorMessage, 'error', 8000);
+        if (!url || !username || !password) {
+            this.showMessage('请填写完整的WebDAV信息', 'error');
+            return;
         }
-    }    // 从云端恢复配置到本地
-    async restoreFromCloud() {
+
         try {
-            // 检查WebDAV是否已配置
-            const webdavConfig = await this.getStorageData('webdavConfig');
-            if (!webdavConfig || !webdavConfig.url || !webdavConfig.username || !webdavConfig.password) {
-                this.showMessage('请先在WebDAV同步设置中配置服务器地址、用户名和密码', 'warning');
-                return;
-            }
-
-            if (!this.webdavClient) {
-                this.showMessage('WebDAV客户端未初始化，请先保存WebDAV设置', 'warning');
-                return;
-            }            // 使用Menu系统的确认对话框简化API
-            const confirmed = await window.GlobalScope.Menu.confirm('从云端恢复会与本地配置合并，是否继续？');
+            this.showMessage('正在测试连接...', 'info');
+            this.webdavClient.setCredentials(url, username, password);
+            const result = await this.webdavClient.testConnection();
             
-            if (!confirmed) {
-                return;
-            }
-
-            this.showMessage('正在从云端恢复...', 'info');
-            
-            // 获取云端配置列表
-            const cloudConfigs = await this.webdavClient.getConfigList();
-            
-            if (cloudConfigs.length === 0) {
-                this.showMessage('云端没有配置可恢复', 'info');
-                return;
-            }
-
-            // 获取本地现有配置，用于去重
-            const localConfigs = await this.localStorageManager.getLocalConfigList();
-            const localConfigNames = new Set(localConfigs.map(c => `${c.name}_${c.issuer || ''}`));
-
-            let successCount = 0;
-            let skipCount = 0;
-            let failCount = 0;
-
-            // 逐个恢复配置
-            for (const cloudConfig of cloudConfigs) {
-                try {
-                    const configKey = `${cloudConfig.name}_${cloudConfig.issuer || ''}`;
-                    
-                    // 检查是否已存在
-                    if (localConfigNames.has(configKey)) {
-                        skipCount++;
-                        continue;
-                    }
-
-                    // 获取完整的云端配置
-                    const fullConfig = await this.webdavClient.getConfig(cloudConfig.id);
-                    if (fullConfig.success) {
-                        const result = await this.localStorageManager.addLocalConfig(fullConfig.config);
-                        if (result.success) {
-                            successCount++;
-                            localConfigNames.add(configKey); // 避免重复
-                        } else {
-                            failCount++;
-                        }
-                    } else {
-                        failCount++;
-                    }
-                } catch (error) {
-                    failCount++;
-                    console.error('恢复配置出错:', cloudConfig.name, error);
-                }
-            }
-
-            const message = `恢复完成：新增 ${successCount} 个，跳过 ${skipCount} 个，失败 ${failCount} 个`;
-            if (failCount === 0) {
-                this.showMessage(message, 'success');
+            if (result.success) {
+                this.showMessage('WebDAV连接测试成功！', 'success');
             } else {
-                this.showMessage(message, 'warning');
+                this.showMessage('连接测试失败: ' + result.error, 'error');
             }
         } catch (error) {
-            this.showMessage('恢复失败: ' + error.message, 'error');
+            this.showMessage('连接测试失败: ' + error.message, 'error');
         }
     }
 
-    async syncToCloud() {
-        // 保留旧方法，实际调用备份功能
-        await this.backupToCloud();
+    async saveWebDAVSettings() {
+        const config = {
+            url: document.getElementById('webdavUrl')?.value,
+            username: document.getElementById('webdavUsername')?.value,
+            password: document.getElementById('webdavPassword')?.value
+        };
+
+        try {
+            await chrome.storage.local.set({ webdavConfig: config });
+            this.showMessage('WebDAV设置已保存', 'success');
+        } catch (error) {
+            this.showMessage('保存失败: ' + error.message, 'error');
+        }
     }
 
-    async validateConfigs() {
+    async saveEncryptionSettings() {
+        const encryptionKey = document.getElementById('encryptionKey')?.value;
+        const enableBiometric = document.getElementById('enableBiometric')?.checked;
+
         try {
-            this.showMessage('正在验证配置...', 'info');
-            const configs = await this.localStorageManager.getAllLocalConfigs();
-            let validCount = 0;
-            
-            for (const config of configs) {
-                // 简单验证逻辑
-                if (config.name && config.secret) {
-                    validCount++;
+            await chrome.storage.local.set({
+                encryptionConfig: {
+                    customKey: encryptionKey,
+                    biometricEnabled: enableBiometric
                 }
+            });
+            this.showMessage('加密设置已保存', 'success');
+        } catch (error) {
+            this.showMessage('保存失败: ' + error.message, 'error');
+        }
+    }    async saveLocalStorageSettings() {
+        const allowLocalStorage = document.getElementById('allowLocalStorage')?.checked;
+
+        try {
+            await chrome.storage.local.set({
+                localStorageConfig: {
+                    useEncryptedStorage: allowLocalStorage || false
+                }
+            });
+            this.showMessage('本地存储设置已保存', 'success');
+        } catch (error) {
+            this.showMessage('保存失败: ' + error.message, 'error');
+        }
+    }    // 主题设置功能
+    async saveThemeSettings() {
+        const theme = document.getElementById('themeSelect')?.value;
+        const saveButton = document.getElementById('saveTheme');
+        
+        try {
+            // 使用全局主题管理器
+            if (window.themeManager) {
+                await window.themeManager.saveTheme(theme || 'auto');
+                this.showMessage('主题设置已保存', 'success');
+                this.showSuccessAnimation(saveButton);
+            } else {
+                // 回退到原来的方法
+                await chrome.storage.local.set({
+                    themeConfig: {
+                        theme: theme || 'auto'
+                    }
+                });
+                this.showMessage('主题设置已保存', 'success');
+                this.showSuccessAnimation(saveButton);
+                this.applyTheme();
+            }
+        } catch (error) {
+            this.showMessage('保存失败: ' + error.message, 'error');
+            this.showErrorAnimation(saveButton);
+        }
+    }
+
+    applyTheme() {
+        if (window.themeManager) {
+            // 使用全局主题管理器
+            const themeSelect = document.getElementById('themeSelect');
+            const selectedTheme = themeSelect?.value || 'auto';
+            window.themeManager.saveTheme(selectedTheme);
+        } else {
+            // 回退到原来的方法
+            const themeSelect = document.getElementById('themeSelect');
+            const selectedTheme = themeSelect?.value || 'auto';
+            const body = document.body;
+            
+            // 移除所有主题类
+            body.classList.remove('dark-mode', 'light-mode');
+            
+            switch (selectedTheme) {
+                case 'dark':
+                    body.classList.add('dark-mode');
+                    break;
+                case 'light':
+                    body.classList.add('light-mode');
+                    break;
+                case 'auto':
+                default:
+                    // 跟随系统设置，不添加额外类，依赖CSS媒体查询
+                    break;
             }
             
-            this.showMessage(`验证完成，有效配置: ${validCount}/${configs.length}`, 'success');
-        } catch (error) {
-            this.showMessage('验证失败: ' + error.message, 'error');
+            // 保存当前主题到localStorage以便其他页面使用
+            try {
+                localStorage.setItem('theme-preference', selectedTheme);
+            } catch (error) {
+                console.warn('无法保存主题偏好到localStorage:', error);
+            }
         }
-    }    async loadSettings() {
+    }
+
+    async initTheme() {
         try {
-            const result = await chrome.storage.local.get(['webdavConfig', 'encryptionConfig', 'localStorageConfig']);
-            
-            // 加载WebDAV设置
-            if (result.webdavConfig) {
-                const config = result.webdavConfig;
-                if (document.getElementById('webdavUrl')) {
-                    document.getElementById('webdavUrl').value = config.url || '';
+            if (window.themeManager) {
+                // 使用全局主题管理器
+                const currentTheme = window.themeManager.getCurrentTheme();
+                const themeSelect = document.getElementById('themeSelect');
+                if (themeSelect) {
+                    themeSelect.value = currentTheme;
                 }
-                if (document.getElementById('webdavUsername')) {
-                    document.getElementById('webdavUsername').value = config.username || '';
-                }
-                if (document.getElementById('webdavPassword')) {
-                    document.getElementById('webdavPassword').value = config.password || '';
+            } else {
+                // 回退到原来的方法
+                const result = await chrome.storage.local.get(['themeConfig']);
+                const savedTheme = result.themeConfig?.theme || 'auto';
+                
+                // 设置选择框的值
+                const themeSelect = document.getElementById('themeSelect');
+                if (themeSelect) {
+                    themeSelect.value = savedTheme;
                 }
                 
-                // 如果有WebDAV配置，初始化WebDAV客户端
-                if (config.url && config.username && config.password) {
-                    this.webdavClient.setCredentials(config.url, config.username, config.password);
-                }
+                // 应用主题
+                this.applyTheme();
             }
-
-            // 加载加密设置
-            if (result.encryptionConfig) {
-                const config = result.encryptionConfig;
-                if (document.getElementById('encryptionKey')) {
-                    document.getElementById('encryptionKey').value = config.customKey || '';
-                }
-                if (document.getElementById('enableBiometric')) {
-                    document.getElementById('enableBiometric').checked = config.biometricEnabled || false;
-                }
-            }
-
-            // 加载本地存储设置
-            if (result.localStorageConfig) {
-                const config = result.localStorageConfig;
-                if (document.getElementById('allowLocalStorage')) {
-                    document.getElementById('allowLocalStorage').checked = config.useEncryptedStorage || false;
-                }
-            }
-
-            // 加载并显示配置列表
-            await this.updateConfigList();
         } catch (error) {
-            console.error('加载设置失败:', error);
-            this.showMessage('加载设置失败: ' + error.message, 'error');
+            console.warn('无法加载主题设置:', error);
+            // 尝试从localStorage获取
+            try {
+                const localTheme = localStorage.getItem('theme-preference') || 'auto';
+                const themeSelect = document.getElementById('themeSelect');
+                if (themeSelect) {
+                    themeSelect.value = localTheme;
+                }
+                this.applyTheme();
+            } catch (localError) {
+                console.warn('无法从localStorage加载主题设置:', localError);
+            }
         }
     }
 
-    // 动态更新配置列表
-    async updateConfigList() {
-        const configListElement = document.getElementById('configList');
-        if (!configListElement) return;
-
+    // 设备验证器相关方法
+    
+    // 加载设备验证器设置
+    async loadDeviceAuthSettings() {
         try {
-            const configs = await this.localStorageManager.getAllLocalConfigs();
-            configListElement.innerHTML = this.renderConfigList(configs);
-            this.attachConfigListEvents();
-        } catch (error) {
-            console.error('更新配置列表失败:', error);
-            configListElement.innerHTML = '<p class="error-message">加载配置列表失败</p>';
-        }
-    }
-
-    // 渲染配置列表
-    renderConfigList(configs) {
-        if (!configs || configs.length === 0) {
-            return '<p class="empty-message">暂无配置</p>';
-        }
-
-        return configs.map((config, index) => `
-            <div class="config-item" data-index="${index}">
-                <div class="config-info">
-                    <h4>${this.escapeHtml(config.name || '未知配置')}</h4>
-                    <p class="config-issuer">${this.escapeHtml(config.issuer || '')}</p>
-                    <p class="config-account">${this.escapeHtml(config.account || '')}</p>
-                </div>
-                <div class="config-actions">
-                    <button class="btn btn-sm btn-secondary edit-config" data-index="${index}">编辑</button>
-                    <button class="btn btn-sm btn-danger delete-config" data-index="${index}">删除</button>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    // 为配置列表附加事件监听器
-    attachConfigListEvents() {
-        // 编辑配置
-        document.querySelectorAll('.edit-config').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const index = parseInt(e.target.getAttribute('data-index'));
-                this.editConfig(index);
-            });
-        });
-
-        // 删除配置
-        document.querySelectorAll('.delete-config').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const index = parseInt(e.target.getAttribute('data-index'));
-                this.deleteConfig(index);
-            });
-        });
-    }
-
-    // 编辑配置
-    async editConfig(index) {
-        try {
-            const configs = await this.localStorageManager.getAllLocalConfigs();
-            if (index >= 0 && index < configs.length) {
-                const config = configs[index];
-                this.showEditConfigModal(config, index);
+            // 从设备验证器获取当前状态
+            const status = this.deviceAuthenticator.getStatus();
+            
+            // 更新UI
+            if (this.elements.enableDeviceAuth) {
+                this.elements.enableDeviceAuth.checked = status.enabled;
             }
+            
+            // 显示或隐藏详细设置
+            this.toggleDeviceAuthDetails(status.enabled);
+            
+            // 更新设备支持状态
+            await this.updateDeviceSupportStatus();
+            
+            // 更新凭据状态
+            this.updateCredentialStatus();
+            
+            // 加载认证超时设置
+            const authTimeout = localStorage.getItem('device_auth_timeout') || '15';
+            if (this.elements.authTimeout) {
+                this.elements.authTimeout.value = authTimeout;
+            }
+            
         } catch (error) {
-            this.showMessage('获取配置失败: ' + error.message, 'error');
+            console.error('加载设备验证器设置失败:', error);
+            this.showMessage('加载设备验证器设置失败', 'error');
         }
-    }    // 删除配置
-    async deleteConfig(index) {
-        // 使用Menu系统的确认对话框简化API
-        const confirmed = await window.GlobalScope.Menu.confirm('确定要删除这个配置吗？');
+    }
+    
+    // 切换设备验证器启用状态
+    async toggleDeviceAuth(enabled) {
+        try {
+            if (enabled) {
+                // 检查设备支持
+                const supported = await this.deviceAuthenticator.checkSupport();
+                if (!supported) {
+                    this.showMessage('设备不支持生物识别验证', 'error');
+                    this.elements.enableDeviceAuth.checked = false;
+                    return;
+                }
+                
+                await this.deviceAuthenticator.enable();
+                this.showMessage('设备验证器已启用', 'success');
+            } else {
+                await this.deviceAuthenticator.disable();
+                this.showMessage('设备验证器已禁用', 'success');
+            }
+            
+            // 更新详细设置显示
+            this.toggleDeviceAuthDetails(enabled);
+            
+            // 更新状态显示
+            await this.updateDeviceSupportStatus();
+            this.updateCredentialStatus();
+            
+        } catch (error) {
+            console.error('切换设备验证器状态失败:', error);
+            this.showMessage('操作失败: ' + error.message, 'error');
+            // 恢复复选框状态
+            this.elements.enableDeviceAuth.checked = !enabled;
+        }
+    }
+    
+    // 显示或隐藏设备验证器详细设置
+    toggleDeviceAuthDetails(show) {
+        if (this.elements.deviceAuthDetails) {
+            this.elements.deviceAuthDetails.style.display = show ? 'block' : 'none';
+        }
+    }
+    
+    // 更新设备支持状态显示
+    async updateDeviceSupportStatus() {
+        if (!this.elements.deviceSupportStatus) return;
         
-        if (!confirmed) {
-            return;
-        }
-
         try {
-            const configs = await this.localStorageManager.getAllLocalConfigs();
-            if (index >= 0 && index < configs.length) {
-                const result = await this.localStorageManager.deleteLocalConfig(configs[index].id);
-                if (result.success) {
-                    this.showMessage('配置已删除', 'success');
-                    this.updateConfigList();
-                } else {
-                    this.showMessage('删除失败: ' + result.message, 'error');
-                }
+            const authInfo = await this.deviceAuthenticator.getAuthenticatorInfo();
+            
+            let statusHtml = '';
+            if (authInfo.supported) {
+                statusHtml = `
+                    <div class="status-item status-success">
+                        <span class="status-icon">✓</span>
+                        <span>浏览器支持WebAuthn</span>
+                    </div>
+                    <div class="status-item ${authInfo.platformSupport ? 'status-success' : 'status-error'}">
+                        <span class="status-icon">${authInfo.platformSupport ? '✓' : '✗'}</span>
+                        <span>平台认证器${authInfo.platformSupport ? '可用' : '不可用'}</span>
+                    </div>
+                    <div class="status-item ${authInfo.conditionalSupport ? 'status-success' : 'status-warning'}">
+                        <span class="status-icon">${authInfo.conditionalSupport ? '✓' : '!'}</span>
+                        <span>条件式中介${authInfo.conditionalSupport ? '支持' : '不支持'}</span>
+                    </div>
+                `;
+            } else {
+                statusHtml = `
+                    <div class="status-item status-error">
+                        <span class="status-icon">✗</span>
+                        <span>设备不支持生物识别验证</span>
+                    </div>
+                    <div class="status-note">
+                        <p><strong>原因：</strong>${authInfo.reason || '未知错误'}</p>
+                    </div>
+                `;
             }
+            
+            this.elements.deviceSupportStatus.innerHTML = statusHtml;
+            
         } catch (error) {
-            this.showMessage('删除失败: ' + error.message, 'error');
+            console.error('更新设备支持状态失败:', error);
+            this.elements.deviceSupportStatus.innerHTML = `
+                <div class="status-item status-error">
+                    <span class="status-icon">✗</span>
+                    <span>检查设备支持时出错</span>
+                </div>
+            `;
         }
     }
-
-    // 显示编辑配置模态框
-    showEditConfigModal(config, index) {
-        this.showAddConfigModal();
+    
+    // 更新凭据状态显示
+    updateCredentialStatus() {
+        if (!this.elements.credentialStatus) return;
         
-        // 预填充数据
-        if (document.getElementById('configName')) {
-            document.getElementById('configName').value = config.name || '';
+        const status = this.deviceAuthenticator.getStatus();
+        
+        let statusHtml = '';
+        if (status.hasCredential) {
+            statusHtml = `
+                <div class="status-item status-success">
+                    <span class="status-icon">✓</span>
+                    <span>设备凭据已注册</span>
+                </div>
+                <div class="status-item ${status.isValid ? 'status-success' : 'status-warning'}">
+                    <span class="status-icon">${status.isValid ? '✓' : '!'}</span>
+                    <span>认证状态：${status.isValid ? '有效' : '已过期'}</span>
+                </div>
+            `;
+            
+            if (status.lastAuthTime) {
+                const lastAuth = new Date(parseInt(status.lastAuthTime));
+                statusHtml += `
+                    <div class="status-item status-info">
+                        <span class="status-icon">ℹ</span>
+                        <span>最后验证：${lastAuth.toLocaleString()}</span>
+                    </div>
+                `;
+            }        } else {
+            statusHtml = `
+                <div class="status-item status-info">
+                    <span class="status-icon">ℹ</span>
+                    <span>尚未注册设备凭据</span>
+                </div>
+                <div class="status-note">
+                    <p>首次使用设备验证器时将自动注册设备凭据</p>
+                    <p><strong>注意：</strong>关闭设备验证器开关不会删除已注册的凭据，只是暂停功能</p>
+                </div>
+            `;
         }
-        if (document.getElementById('configSecret')) {
-            document.getElementById('configSecret').value = config.secret || '';
-        }
-        if (document.getElementById('configIssuer')) {
-            document.getElementById('configIssuer').value = config.issuer || '';
-        }
-        if (document.getElementById('configAccount')) {
-            document.getElementById('configAccount').value = config.account || '';
-        }
-        if (document.getElementById('configDigits')) {
-            document.getElementById('configDigits').value = config.digits || '6';
-        }
-        if (document.getElementById('configPeriod')) {
-            document.getElementById('configPeriod').value = config.period || '30';
-        }
-
-        // 修改保存按钮为更新模式
-        const saveButton = document.getElementById('saveConfig');
-        if (saveButton) {
-            saveButton.textContent = '更新';
-            saveButton.onclick = () => this.updateExistingConfig(index);
-        }
+        
+        this.elements.credentialStatus.innerHTML = statusHtml;
     }
-
-    // 更新现有配置
-    async updateExistingConfig(index) {
-        const name = document.getElementById('configName')?.value;
-        const secret = document.getElementById('configSecret')?.value;
-        const issuer = document.getElementById('configIssuer')?.value;
-        const account = document.getElementById('configAccount')?.value;
-        const digits = document.getElementById('configDigits')?.value;
-        const period = document.getElementById('configPeriod')?.value;
-
-        if (!name || !secret) {
-            this.showMessage('请填写配置名称和密钥', 'error');
-            return;
-        }
-
+    
+    // 测试设备验证
+    async testDeviceAuth() {
         try {
-            const configs = await this.localStorageManager.getAllLocalConfigs();
-            if (index >= 0 && index < configs.length) {
-                const updatedConfig = {
-                    ...configs[index],
-                    name: name,
-                    secret: secret,
-                    issuer: issuer || '',
-                    account: account || '',
-                    digits: parseInt(digits) || 6,
-                    period: parseInt(period) || 30,
-                    type: 'totp'
-                };
-
-                const result = await this.localStorageManager.updateLocalConfig(configs[index].id, updatedConfig);
-                if (result.success) {
-                    this.showMessage('配置已更新', 'success');
-                    this.hideAddConfigModal();
-                    this.clearConfigForm();
-                    this.updateConfigList();
-                    
-                    // 自动备份到云端
-                    this.backupToCloud(updatedConfig);
-                } else {
-                    this.showMessage('更新失败: ' + result.message, 'error');
-                }
+            this.showMessage('正在进行设备验证测试...', 'info');
+            
+            const result = await this.deviceAuthenticator.authenticate();
+            
+            if (result.success) {
+                this.showMessage('设备验证测试成功！', 'success');
+                // 更新凭据状态显示
+                this.updateCredentialStatus();
+            } else {
+                this.showMessage('设备验证测试失败: ' + result.error, 'error');
             }
+            
         } catch (error) {
-            this.showMessage('更新失败: ' + error.message, 'error');
-        }    }
-
-    // 获取存储数据的通用方法
-    async getStorageData(key) {
-        try {
-            const result = await chrome.storage.local.get([key]);
-            return result[key];
-        } catch (error) {
-            console.error(`获取存储数据失败 (${key}):`, error);
-            return null;
+            console.error('设备验证测试失败:', error);
+            this.showMessage('设备验证测试过程中出现错误: ' + error.message, 'error');
         }
-    }    // 显示消息提示 - 使用Menu系统简化API
-    showMessage(message, type = 'info', duration = 3000) {
-        return window.GlobalScope.Menu.notify(message, type, duration);
+    }
+      // 重置设备凭据
+    async resetDeviceCredentials() {
+        try {
+            const confirmed = confirm(
+                '确定要重置设备凭据吗？\n\n' +
+                '这将清除所有已注册的生物识别信息，下次使用时需要重新注册。\n\n' +
+                '注意：如果您只是想临时关闭设备验证器，请使用上方的开关按钮，' +
+                '这样不会清除凭据，重新启用时可以直接使用。'
+            );
+            if (!confirmed) return;
+            
+            this.deviceAuthenticator.resetCredentials();
+            this.showMessage('设备凭据已重置，下次启用设备验证器时将重新注册', 'success');
+            
+            // 更新凭据状态显示
+            this.updateCredentialStatus();
+            
+        } catch (error) {
+            console.error('重置设备凭据失败:', error);
+            this.showMessage('重置设备凭据失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 保存设备验证器设置
+    async saveDeviceAuthSettings() {
+        try {
+            // 保存认证超时设置
+            const authTimeout = this.elements.authTimeout?.value || '15';
+            localStorage.setItem('device_auth_timeout', authTimeout);
+            
+            // 保存其他设置（设备验证器的启用状态已经在切换时保存了）
+            const config = {
+                enabled: this.deviceAuthenticator.isEnabled,
+                authTimeout: parseInt(authTimeout),
+                lastSaved: Date.now()
+            };
+            
+            await chrome.storage.local.set({ deviceAuthConfig: config });
+            
+            this.showMessage('设备验证器设置已保存', 'success');
+            
+        } catch (error) {
+            console.error('保存设备验证器设置失败:', error);
+            this.showMessage('保存设备验证器设置失败: ' + error.message, 'error');
+        }
     }
 
-    // HTML转义函数
-    escapeHtml(unsafe) {
-        if (typeof unsafe !== 'string') return '';
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
+    // ...existing code...
 }
 
 // 全局变量导出（用于Service Worker环境）
