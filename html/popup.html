@@ -14,10 +14,9 @@
             <button class="popup-tab-btn active" data-tab="fill">
                 <span class="tab-icon">🔐</span>
                 <span class="tab-label">填充</span>
-            </button>
-            <button class="popup-tab-btn" data-tab="local">
+            </button>            <button class="popup-tab-btn" data-tab="local">
                 <span class="tab-icon">📱</span>
-                <span class="tab-label">本地</span>
+                <span class="tab-label">实时加载</span>
             </button>
             <button class="popup-tab-btn" data-tab="scan">
                 <span class="tab-icon">📷</span>
@@ -81,9 +80,8 @@
             </div>
 
             <!-- 本地标签页 -->
-            <div class="popup-tab-content" id="local">
-                <div class="tab-header">
-                    <h3>本地验证码</h3>
+            <div class="popup-tab-content" id="local">                <div class="tab-header">
+                    <h3>实时加载验证码</h3>
                     <button id="refreshLocal" class="refresh-btn">🔄</button>
                 </div>
                 
@@ -98,11 +96,10 @@
                     </div>
                 </div>
 
-                <div class="local-codes" id="localCodes" style="display: none;">
-                    <div class="empty-state">
+                <div class="local-codes" id="localCodes" style="display: none;">                    <div class="empty-state">
                         <div class="empty-icon">📭</div>
-                        <p>暂无本地验证码</p>
-                        <p class="empty-tip">在设置中添加本地存储的验证码</p>
+                        <p>暂无实时验证码</p>
+                        <p class="empty-tip">在设置中添加实时加载的验证码</p>
                     </div>
                 </div>
             </div>

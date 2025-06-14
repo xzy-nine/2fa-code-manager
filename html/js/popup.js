@@ -92,6 +92,12 @@ class PopupManager {
         // 首先尝试恢复认证状态
         this.restoreAuthenticationState();
         await this.loadSettings();
+        
+        // 修改：先加载本地验证码，然后再更新当前站点
+        if (this.authenticated || this.localAuthenticated) {
+            await this.loadLocalCodes();
+        }
+        
         await this.updateCurrentSite();
         this.startLocalCodeUpdates();
         // 同步认证状态
@@ -623,11 +629,11 @@ class PopupManager {
         const localCodesContainer = document.getElementById('localCodes');
         
         if (this.localCodes.length === 0) {
-            localCodesContainer.innerHTML = `
-                <div class="empty-state">
+            localCodesContainer.innerHTML = `                
+                    <div class="empty-state">
                     <div class="empty-icon">📭</div>
-                    <p>暂无本地验证码</p>
-                    <p class="empty-tip">在设置中添加本地存储的验证码</p>
+                    <p>暂无实时验证码</p>
+                    <p class="empty-tip">在设置中添加实时加载的验证码</p>
                 </div>
             `;
             return;
