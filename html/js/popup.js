@@ -673,29 +673,21 @@ class PopupManager {
     async updateLocalCodesDisplay() {
         console.log('开始更新本地验证码显示，配置数量:', this.localCodes.length);
         
-        for (const config of this.localCodes) {
-            // 优先使用配置ID作为选择器，这样即使有重复的secret也能找到正确的元素
+        for (const config of this.localCodes) {            // 优先使用配置ID作为选择器，这样即使有重复的secret也能找到正确的元素
             const element = document.querySelector(`[data-id="${config.id}"]`);
             console.log('处理配置:', config.name, '元素找到:', !!element);
-            console.log('配置详情:', JSON.stringify(config, null, 2));
             
             if (element) {
                 try {
-                    console.log('开始生成TOTP，密钥:', config.secret?.substring(0, 8) + '...');
-                    
                     // 验证密钥是否存在
                     if (!config.secret) {
                         console.error('配置密钥为空:', config.name);
                         element.textContent = '密钥缺失';
                         continue;
                     }
-                    
-                    const code = await this.totpGenerator.generateTOTP(config.secret);
-                    console.log('生成的验证码:', code);
-                    
-                    if (code) {
+                      const code = await this.totpGenerator.generateTOTP(config.secret);
+                      if (code) {
                         element.textContent = code;
-                        console.log('验证码已更新到页面:', code);
                     } else {
                         element.textContent = '------';
                         console.error('生成验证码失败（返回null）:', config.name);

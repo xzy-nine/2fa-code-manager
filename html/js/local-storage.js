@@ -36,10 +36,8 @@ class LocalStorageManager {    constructor() {
             
             // 检查是否已存在相同secret的配置
             const existingConfigs = await this.getAllLocalConfigs();
-            const duplicateConfig = existingConfigs.find(existing => existing.secret === config.secret);
-            
+            const duplicateConfig = existingConfigs.find(existing => existing.secret === config.secret);            
             if (duplicateConfig) {
-                console.log('检测到重复的secret:', config.secret?.substring(0, 8) + '...');
                 return { 
                     success: false, 
                     message: `已存在相同密钥的配置: ${duplicateConfig.name || '未命名'}` 
@@ -55,11 +53,8 @@ class LocalStorageManager {    constructor() {
                 type: 'local'
             };
 
-            console.log('配置ID已生成:', configId);
-
-            // 获取加密密钥
+            console.log('配置ID已生成:', configId);            // 获取加密密钥
             const encryptionKey = await this.getEncryptionKey();
-            console.log('加密密钥状态:', encryptionKey ? '已设置自定义密钥' : '使用默认密钥');
             
             // 加密配置数据（复用云端加密逻辑）
             const encryptedConfig = await this.cryptoManager.encrypt(configWithId, encryptionKey);
@@ -108,21 +103,17 @@ class LocalStorageManager {    constructor() {
             }
             
             console.log('找到加密配置，长度:', encryptedConfig.length);
-            
-            // 获取加密密钥
+              // 获取加密密钥
             const encryptionKey = await this.getEncryptionKey();
-            console.log('加密密钥状态:', encryptionKey ? '自定义密钥' : '默认密钥');
             
             // 解密配置（复用云端解密逻辑）
             const decryptedConfig = await this.cryptoManager.decrypt(encryptedConfig, encryptionKey);
             
             if (!decryptedConfig) {
                 console.error('解密失败，可能密钥不匹配，配置ID:', configId);
-                return { success: false, message: '解密失败，请检查密钥' };
-            }
+                return { success: false, message: '解密失败，请检查密钥' };            }
             
             console.log('解密成功，配置名称:', decryptedConfig.name);
-            console.log('配置包含的字段:', Object.keys(decryptedConfig));
             
             return { success: true, config: decryptedConfig };
         } catch (error) {

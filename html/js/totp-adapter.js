@@ -9,13 +9,9 @@ class TOTPAdapter {
             console.error('OTPAuth库未加载');
             throw new Error('OTPAuth库未加载');
         }
-    }
-
-    // 生成TOTP验证码
+    }    // 生成TOTP验证码
     async generateTOTP(secret, timeOffset = 0) {
         try {
-            console.log('开始生成TOTP，密钥:', secret?.substring(0, 8) + '...');
-            
             // 验证密钥
             if (!secret) {
                 throw new Error('密钥为空');
@@ -36,12 +32,10 @@ class TOTPAdapter {
             let token;
             if (timeOffset !== 0) {
                 const timestamp = Math.floor((Date.now() + timeOffset * 1000) / 1000);
-                token = totp.generate({ timestamp });
-            } else {
+                token = totp.generate({ timestamp });            } else {
                 token = totp.generate();
             }
-            
-            console.log('最终生成的验证码:', token);
+
             return token;
         } catch (error) {
             console.error('生成TOTP失败:', error);
