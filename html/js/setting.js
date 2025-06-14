@@ -2,14 +2,14 @@
 // 该文件只负责初始化设置页面和协调各个模块
 
 // 设置管理器类
-class SettingManager {
-    constructor() {
+class SettingManager {    constructor() {
         // 获取全局模块实例
         this.themeManager = window.themeManager || new GlobalScope.ThemeManager();
         this.webdavClient = window.webdavClient || new GlobalScope.WebDAVClient();
         this.cryptoManager = window.cryptoManager || new GlobalScope.CryptoManager();
         this.localStorageManager = window.localStorageManager || new GlobalScope.LocalStorageManager();
         this.deviceAuthenticator = window.deviceAuthenticator || new GlobalScope.DeviceAuthenticator();
+        this.totpConfigManager = window.totpConfigManager || new GlobalScope.TOTPConfigManager();
         this.init();
     }
     
@@ -52,11 +52,15 @@ class SettingManager {
             if (this.deviceAuthenticator) {
                 await this.deviceAuthenticator.initSettings();
             }
+            
+            if (this.totpConfigManager) {
+                await this.totpConfigManager.initSettings();
+            }
         } catch (error) {
             console.error('加载模块设置失败:', error);
             this.showMessage('加载设置失败: ' + error.message, 'error');
         }
-    }    // 初始化滚动进度指示器
+    }// 初始化滚动进度指示器
     initScrollProgress() {
         const settingsContent = document.querySelector('.settings-content');
         if (!settingsContent) return;
@@ -304,9 +308,7 @@ class SettingManager {
         // 各个模块负责初始化和管理自己的DOM元素
         this.elements = this.elements || {};
         this.elements.backButton = document.getElementById('backButton');
-    }
-
-    initEventListeners() {
+    }    initEventListeners() {
         // 返回按钮
         this.elements.backButton?.addEventListener('click', () => {
             window.close();
@@ -334,27 +336,7 @@ class SettingManager {
         // 保存本地存储设置
         this.elements.saveLocalStorageButton?.addEventListener('click', () => this.saveLocalStorageSettings());
         
-        // 添加配置
-        this.elements.addConfigButton?.addEventListener('click', () => this.showAddConfigModal());
-        
-        // 导出配置
-        this.elements.exportConfigsButton?.addEventListener('click', () => this.exportConfigs());
-          // 导入配置
-        this.elements.importConfigsButton?.addEventListener('click', () => this.importConfigs());
-        
-        // 备份到云端
-        this.elements.backupToCloudButton?.addEventListener('click', () => this.backupToCloud());
-        
-        // 从云端恢复
-        this.elements.restoreFromCloudButton?.addEventListener('click', () => this.restoreFromCloud());
-        
-        // 验证配置
-        this.elements.validateConfigsButton?.addEventListener('click', () => this.validateConfigs());
-        
-        // 模态框事件
-        this.elements.closeModal?.addEventListener('click', () => this.hideAddConfigModal());
-        this.elements.cancelConfigButton?.addEventListener('click', () => this.hideAddConfigModal());
-        this.elements.saveConfigButton?.addEventListener('click', () => this.saveNewConfig());        // 设备验证器设置已经在前面添加过事件监听器，此处不需要再添加
+        // TOTP配置管理事件由TOTPConfigManager自己处理
     }
 
     async testWebDAVConnection() {
