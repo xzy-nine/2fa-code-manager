@@ -32,7 +32,16 @@ class SettingManager {    constructor() {
     }    // 加载所有模块的设置
     async loadModules() {
         try {
-            // 初始化各个模块的设置
+            // 如果是受限模式，只初始化设备验证器
+            if (this.isRestrictedMode) {
+                if (this.deviceAuthenticator) {
+                    await this.deviceAuthenticator.initSettings();
+                }
+                this.setupRestrictedModeListeners();
+                return;
+            }
+            
+            // 正常模式，初始化所有模块
             if (this.themeManager) {
                 await this.themeManager.initSettings();
             }
@@ -60,6 +69,27 @@ class SettingManager {    constructor() {
             console.error('加载模块设置失败:', error);
             this.showMessage('加载设置失败: ' + error.message, 'error');
         }
+    }
+    
+    // 设置受限模式的事件监听器
+    setupRestrictedModeListeners() {
+        // 监听全局安全状态变更
+        document.addEventListener('globalSecurityStateChanged', (e) => {
+            if (!e.detail.enabled) {
+                // 验证器被关闭，重新加载页面显示所有设置
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+            }
+        });
+        
+        // 监听验证成功事件
+        document.addEventListener('authenticationSuccessful', (e) => {
+            // 验证成功，重新加载页面
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        });
     }// 初始化滚动进度指示器
     initScrollProgress() {
         const settingsContent = document.querySelector('.settings-content');
@@ -277,6 +307,39 @@ class SettingManager {    constructor() {
         const app = document.getElementById('app');
         if (!app) return;
 
+        // 先检查是否需要显示受限访问界面
+        if (this.deviceAuthenticator && this.deviceAuthenticator.shouldRestrictAccess()) {
+            // 只显示设备验证器控制和验证按钮
+            this.renderRestrictedPage(app);
+            this.isRestrictedMode = true;
+            return;
+        }
+        
+        // 正常模式，渲染完整设置页面
+        this.renderFullSettingsPage(app);
+    }
+    
+    // 渲染受限访问页面
+    renderRestrictedPage(app) {
+        app.innerHTML = `
+            <header class="header">
+                <h1>设置 - 安全验证</h1>
+                <button id="backButton" class="back-button">返回</button>
+            </header>
+            <main class="settings-content restricted">
+                <div id="device-auth-settings"></div>
+            </main>
+        `;
+        
+        // 使用设备验证器渲染受限UI
+        const deviceAuthContainer = document.getElementById('device-auth-settings');
+        if (deviceAuthContainer && this.deviceAuthenticator) {
+            this.deviceAuthenticator.renderRestrictedUI(deviceAuthContainer);
+        }
+    }
+    
+    // 渲染完整设置页面
+    renderFullSettingsPage(app) {
         app.innerHTML = `
             <header class="header">
                 <h1>设置</h1>
@@ -302,7 +365,7 @@ class SettingManager {    constructor() {
             </main>
             <div id="modals-container"></div>
         `;
-    }    // 初始化元素 - 简化版
+    }// 初始化元素 - 简化版
     initElements() {
         // 设置页面只负责最基本的元素引用
         // 各个模块负责初始化和管理自己的DOM元素

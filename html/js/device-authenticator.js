@@ -468,13 +468,227 @@ DeviceAuthenticator.prototype.resetDeviceCredentials = function() {
     this.updateStatusDisplay();
 };
 
+// 清除所有认证状态
+DeviceAuthenticator.prototype.clearAllAuthenticationStates = function() {
+    // 清除本地认证状态
+    this.lastAuthTime = null;
+    localStorage.removeItem('last_webauthn_auth');
+    
+    // 清除chrome.storage中的认证状态
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.remove(['last_webauthn_auth']);
+    }
+    
+    // 触发事件通知其他组件清除认证状态
+    var event = new CustomEvent('clearAllAuthenticationStates', {
+        detail: { timestamp: Date.now() }
+    });
+    document.dispatchEvent(event);
+    
+    console.log('所有认证状态已清除');
+};
+
 // 切换设备验证器状态
 DeviceAuthenticator.prototype.toggleDeviceAuth = function(enabled) {
+    var self = this;
+    
+    // 如果是关闭操作，必须先验证
+    if (!enabled && this.isEnabled) {
+        this.requireAuthenticationToDisable().then(function(authResult) {
+            if (authResult.success) {
+                self.performToggle(enabled);
+            } else {
+                // 验证失败，恢复开关状态
+                if (self.elements.enableDeviceAuth) {
+                    self.elements.enableDeviceAuth.checked = true;
+                }
+                self.showMessage('关闭验证器需要先通过验证: ' + authResult.error, 'error');
+            }
+        });
+    } else {
+        // 开启操作直接执行
+        this.performToggle(enabled);
+    }
+};
+
+// 执行切换操作
+DeviceAuthenticator.prototype.performToggle = function(enabled) {
     this.isEnabled = enabled;
     this.saveSettings();
     this.updateStatusDisplay();
     
     console.log('设备验证器状态已切换为:', enabled ? '启用' : '禁用');
+    
+    // 触发全局状态变更事件
+    this.notifyGlobalSecurityStateChange(enabled);
+};
+
+// 要求验证后才能禁用
+DeviceAuthenticator.prototype.requireAuthenticationToDisable = function() {
+    var self = this;
+    
+    return new Promise(function(resolve) {
+        // 显示确认对话框
+        if (!confirm('关闭设备验证器需要进行身份验证，确定要继续吗？')) {
+            resolve({ success: false, error: '用户取消操作' });
+            return;
+        }
+        
+        // 执行验证
+        self.authenticate().then(function(result) {
+            if (result.success) {
+                // 验证成功，再次确认关闭
+                if (confirm('验证通过！确定要关闭设备验证器吗？关闭后将无法保护您的验证码安全。')) {
+                    resolve({ success: true });
+                } else {
+                    resolve({ success: false, error: '用户取消关闭操作' });
+                }
+            } else {
+                resolve({ success: false, error: result.error || '验证失败' });
+            }
+        }).catch(function(error) {
+            resolve({ success: false, error: '验证过程出错: ' + error.message });
+        });
+    });
+};
+
+// 通知全局安全状态变更
+DeviceAuthenticator.prototype.notifyGlobalSecurityStateChange = function(enabled) {
+    // 触发自定义事件，通知其他组件
+    var event = new CustomEvent('globalSecurityStateChanged', {
+        detail: { 
+            enabled: enabled,
+            timestamp: Date.now()
+        }
+    });
+    document.dispatchEvent(event);
+    
+    // 如果关闭了验证器，清除所有认证状态
+    if (!enabled) {
+        this.clearAllAuthenticationStates();
+    }
+};
+
+// 检查是否应该限制UI访问
+DeviceAuthenticator.prototype.shouldRestrictAccess = function() {
+    // 如果验证器已启用但未通过验证，则限制访问
+    return this.isEnabled && !this.isAuthenticationValid();
+};
+
+// 渲染受限制的UI（只显示关闭开关）
+DeviceAuthenticator.prototype.renderRestrictedUI = function(container) {
+    if (!this.shouldRestrictAccess()) {
+        return false; // 不需要限制
+    }
+    
+    var self = this;
+    container.innerHTML = `
+        <div class="restricted-access-notice">
+            <div class="security-icon">🔒</div>
+            <h3>安全验证已启用</h3>
+            <p>请先通过设备验证或关闭安全验证器后访问其他设置。</p>
+            
+            <div class="security-options">
+                <div class="option-group">
+                    <div class="switch-group">
+                        <label for="enableDeviceAuth">启用设备验证器</label>
+                        <label class="switch">
+                            <input type="checkbox" id="enableDeviceAuth" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <small>关闭此选项需要先通过身份验证</small>
+                </div>
+                
+                <div class="security-actions">
+                    <button id="performVerification" class="btn btn-primary">
+                        <span>🔑</span>
+                        <span>设备验证</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 绑定事件监听器
+    var enableSwitch = container.querySelector('#enableDeviceAuth');
+    var verifyBtn = container.querySelector('#performVerification');
+    
+    if (enableSwitch) {
+        enableSwitch.addEventListener('change', function(e) {
+            self.toggleDeviceAuth(e.target.checked);
+        });
+    }
+    
+    if (verifyBtn) {
+        verifyBtn.addEventListener('click', function() {
+            self.authenticate().then(function(result) {
+                if (result.success) {
+                    self.showMessage('验证成功！正在重新加载设置...', 'success');
+                    
+                    // 触发认证成功事件
+                    var event = new CustomEvent('authenticationSuccessful', {
+                        detail: { timestamp: Date.now() }
+                    });
+                    document.dispatchEvent(event);
+                } else {
+                    self.showMessage('验证失败: ' + result.error, 'error');
+                }
+            }).catch(function(error) {
+                self.showMessage('验证过程出错: ' + error.message, 'error');
+            });
+        });
+    }
+      return true; // 成功渲染受限UI
+};
+
+// 绑定受限UI的事件
+DeviceAuthenticator.prototype.bindRestrictedUIEvents = function() {
+    var self = this;
+    
+    // 设备验证器开关事件
+    var enableDeviceAuth = document.getElementById('enableDeviceAuth');
+    if (enableDeviceAuth) {
+        enableDeviceAuth.addEventListener('change', function(e) {
+            self.toggleDeviceAuth(e.target.checked);
+        });
+    }
+    
+    // 验证按钮事件
+    var performAuthBtn = document.getElementById('performAuth');
+    if (performAuthBtn) {
+        performAuthBtn.addEventListener('click', function() {
+            self.performAuthForAccess();
+        });
+    }
+};
+
+// 执行验证以获取访问权限
+DeviceAuthenticator.prototype.performAuthForAccess = function() {
+    var self = this;
+    
+    this.authenticate().then(function(result) {
+        if (result.success) {
+            self.showMessage('验证成功！页面将重新加载', 'success');
+            // 触发页面重新加载事件
+            var event = new CustomEvent('authenticationSuccessful', {
+                detail: { 
+                    authenticated: true,
+                    timestamp: Date.now()
+                }
+            });
+            document.dispatchEvent(event);
+            
+            // 延迟重新加载页面
+            setTimeout(function() {
+                window.location.reload();
+            }, 1000);
+        } else {
+            self.showMessage('验证失败: ' + result.error, 'error');
+        }
+    }).catch(function(error) {
+        self.showMessage('验证过程出错: ' + error.message, 'error');
+    });
 };
 
 // 更新设置页面状态显示

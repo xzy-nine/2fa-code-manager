@@ -1154,3 +1154,197 @@ body {
 .device-auth-setup-prompt .primary-btn:active {
     transform: translateY(0);
 }
+
+/* 安全受限UI样式 */
+.security-restricted-notice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 24px;
+    gap: 16px;
+    min-height: 300px;
+    justify-content: center;
+}
+
+.security-restricted-notice .security-icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.security-restricted-notice h3 {
+    color: var(--popup-text-primary);
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+}
+
+.security-restricted-notice p {
+    color: var(--popup-text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0 0 16px 0;
+    max-width: 280px;
+}
+
+.security-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 200px;
+}
+
+.security-actions .primary-btn,
+.security-actions .secondary-btn {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.security-actions .primary-btn {
+    background: var(--primary-gradient);
+    color: white;
+    box-shadow: var(--popup-shadow-sm);
+}
+
+.security-actions .primary-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--popup-shadow-md);
+}
+
+.security-actions .secondary-btn {
+    background: var(--popup-bg-secondary);
+    color: var(--popup-text-secondary);
+    border: 1px solid var(--popup-border-primary);
+}
+
+.security-actions .secondary-btn:hover {
+    background: var(--popup-bg-tertiary);
+    border-color: var(--popup-border-focus);
+}
+
+.security-note {
+    margin-top: 16px;
+    padding: 12px;
+    background: var(--popup-bg-accent);
+    border-radius: 8px;
+    border: 1px solid var(--popup-border-secondary);
+}
+
+.security-note p {
+    font-size: 12px;
+    color: var(--popup-text-tertiary);
+    margin: 0;
+}
+
+/* 受限制的设置页面样式 */
+.restricted-access-notice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 40px 24px;
+    gap: 20px;
+    min-height: 400px;
+    justify-content: center;
+}
+
+.restricted-access-notice .security-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    animation: pulse 2s infinite;
+}
+
+.restricted-access-notice h3 {
+    color: var(--text-primary);
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+}
+
+.restricted-access-notice p {
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0 0 24px 0;
+    max-width: 400px;
+}
+
+.security-options {
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.option-group {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.option-group .switch-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.option-group small {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.auth-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.auth-actions .btn {
+    padding: 14px 20px;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.auth-actions .btn-primary {
+    background: var(--primary-gradient);
+    color: white;
+    box-shadow: var(--shadow-md);
+}
+
+.auth-actions .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.auth-actions .btn span {
+    font-size: 18px;
+}

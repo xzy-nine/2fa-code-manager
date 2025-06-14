@@ -123,6 +123,40 @@ class PopupManager {
                 return true; // 保持消息通道开启以便异步回复
             });
         }
+        
+        // 监听全局安全状态变更
+        document.addEventListener('globalSecurityStateChanged', (e) => {
+            console.log('收到全局安全状态变更事件:', e.detail);
+            if (!e.detail.enabled) {
+                // 安全验证器被关闭，清除认证状态
+                this.authenticated = false;
+                this.localAuthenticated = false;
+                this.updateAuthStatus();
+                this.updateLocalAuthStatus();
+            }
+            // 重新检查设备验证器状态
+            this.checkDeviceAuthStatus().then(() => {
+                this.updateUIBasedOnDeviceAuth();
+            });
+        });
+        
+        // 监听认证状态清除事件
+        document.addEventListener('clearAllAuthenticationStates', (e) => {
+            console.log('收到清除所有认证状态事件');
+            this.authenticated = false;
+            this.localAuthenticated = false;
+            this.updateAuthStatus();
+            this.updateLocalAuthStatus();
+            this.updateUIBasedOnDeviceAuth();
+        });
+        
+        // 监听设备认证成功事件
+        document.addEventListener('deviceAuthSuccess', (e) => {
+            console.log('收到设备认证成功事件:', e.detail);
+            if (e.detail.authenticated) {
+                this.updateUIBasedOnDeviceAuth();
+            }
+        });
     }
 
     // 初始化事件监听器
@@ -1269,25 +1303,96 @@ class PopupManager {
         } catch (error) {
             console.error('重新加载设备验证器设置失败:', error);
         }
-    }
-    // 根据设备验证器状态更新UI
+    }    // 根据设备验证器状态更新UI    
     updateUIBasedOnDeviceAuth() {
-        const tabButtons = document.querySelectorAll('.popup-tab-btn');
-        const tabContents = document.querySelectorAll('.popup-tab-content');
+        var deviceAuthStatus = this.deviceAuthenticator.getStatus();
+        console.log('更新UI基于设备验证器状态:', deviceAuthStatus);
+        console.log('当前认证状态:', { authenticated: this.authenticated, localAuthenticated: this.localAuthenticated });
         
         if (!this.deviceAuthEnabled) {
-            // 如果设备验证器未启用，隐藏所有标签页，显示设置提示
+            // 如果设备验证器未启用，显示设置提示
             this.showDeviceAuthSetupPrompt();
             return;
         }
         
-        if (!this.authenticated && !this.localAuthenticated) {
-            // 如果设备验证器启用但未解锁，只显示认证界面，隐藏其他标签页
-            this.hideOtherTabsUntilAuthenticated();
-        } else {
-            // 如果已认证，显示所有标签页
+        // 检查认证状态，如果已认证则显示正常界面
+        if (this.authenticated || this.localAuthenticated) {
+            // 如果已认证，显示所有标签页和正常界面
             this.showAllTabs();
+            this.restoreNormalUI();
+            return;
         }
+        
+        // 检查是否需要安全验证
+        if (this.deviceAuthenticator.shouldRestrictAccess()) {
+            this.showSecurityRestrictedUI();
+            return;
+        }
+        
+        // 如果设备验证器启用但未解锁，只显示认证界面，隐藏其他标签页
+        this.hideOtherTabsUntilAuthenticated();
+    }
+    
+    // 显示安全受限UI
+    showSecurityRestrictedUI() {
+        var container = document.querySelector('.popup-container');
+        container.innerHTML = `
+            <div class="security-restricted-notice">
+                <div class="security-icon">🔒</div>
+                <h3>安全验证已启用</h3>
+                <p>请先通过设备验证后访问验证码功能</p>
+                
+                <div class="security-actions">
+                    <button id="performSecurityAuth" class="primary-btn">
+                        <span>🔑</span>
+                        <span>设备验证</span>
+                    </button>
+                    
+                    <button id="openSecuritySettings" class="secondary-btn">
+                        <span>⚙️</span>
+                        <span>安全设置</span>
+                    </button>
+                </div>
+                
+                <div class="security-note">
+                    <p>安全验证保护您的验证码免受未经授权的访问</p>
+                </div>
+            </div>
+        `;
+        
+        var self = this;
+        // 绑定事件
+        document.getElementById('performSecurityAuth')?.addEventListener('click', function() {
+            self.performSecurityAuthentication();
+        });
+        
+        document.getElementById('openSecuritySettings')?.addEventListener('click', function() {
+            self.openSettings();
+        });
+    }
+      // 执行安全验证
+    performSecurityAuthentication() {
+        var self = this;
+        this.performBiometricAuth().then(function(result) {
+            if (result.success) {
+                // 更新认证状态
+                self.authenticated = true;
+                self.localAuthenticated = true;
+                self.showMessage('验证成功！正在加载界面...', 'success');
+                
+                // 保存认证状态
+                self.saveAuthenticationState();
+                
+                // 立即更新UI
+                setTimeout(function() {
+                    self.updateUIBasedOnDeviceAuth();
+                }, 500);
+            } else {
+                self.showMessage('验证失败: ' + result.error, 'error');
+            }
+        }).catch(function(error) {
+            self.showMessage('验证过程出错: ' + error.message, 'error');
+        });
     }
 
     // 显示设备验证器设置提示
@@ -1367,6 +1472,44 @@ class PopupManager {
             console.log('TOTP管理器初始化完成');
         } catch (error) {
             console.error('初始化TOTP管理器失败:', error);
+        }
+    }
+
+    // 恢复正常UI界面
+    restoreNormalUI() {
+        const container = document.querySelector('.popup-container');
+        if (!container) return;
+        
+        // 检查是否当前显示的是受限访问界面
+        if (container.querySelector('.security-restricted-notice') || 
+            container.querySelector('.device-auth-setup-prompt')) {
+            
+            // 重新加载整个页面内容
+            window.location.reload();
+            return;
+        }
+        
+        // 确保正常的标签页和内容都可见
+        const tabBtns = document.querySelectorAll('.popup-tab-btn');
+        const tabContents = document.querySelectorAll('.popup-tab-content');
+        
+        tabBtns.forEach(btn => {
+            btn.style.display = 'block';
+        });
+        
+        tabContents.forEach(content => {
+            if (content.id === this.currentTab) {
+                content.classList.add('active');
+            }
+        });
+        
+        // 显示正确的内容区域
+        if (this.authenticated) {
+            this.showFillSection();
+        }
+        
+        if (this.localAuthenticated) {
+            this.showLocalCodes();
         }
     }
 }

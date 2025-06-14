@@ -2270,164 +2270,96 @@ input:checked + .slider:before {
     background-color: var(--secondary-bg, #f9f9f9);
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
-    .config-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-        padding: 12px;
-    }
-    
-    .config-code {
-        align-self: flex-end;
-        margin: 0;
-    }
-    
-    .config-actions {
-        align-self: stretch;
-        justify-content: flex-end;
-    }
-    
-    .config-actions .btn {
-        min-width: 100px;
-        flex: 1;
-    }
-    
-    .modal-content {
-        width: 95%;
-        margin: 10px;
-    }
-    
-    .modal-header,
-    .modal-body,
-    .modal-footer {
-        padding: 15px;
-    }
-}
-
-/* 动画效果 */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-50px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* 暗色主题适配 */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --background-color: #1a1a1a;
-        --text-primary: #ffffff;
-        --text-secondary: #b0b0b0;
-        --border-color: #333333;
-        --hover-color: #2a2a2a;
-        --secondary-bg: #2a2a2a;
-        --error-bg: #2d1b1b;
-        --error-color: #ff6b6b;
-    }
-    
-    .config-details .account {
-        background: #333333;
-        color: #ffffff;
-    }
-}
-
-/* 定时器样式（类似弹出界面） */
-.code-header {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    margin-bottom: 4px;
-}
-
-.code-timer {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.timer-circle {
-    position: relative;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: conic-gradient(
-        var(--primary-color, #4CAF50) var(--progress, 0%),
-        var(--border-color, #e0e0e0) var(--progress, 0%)
-    );
+/* 受限制访问样式 */
+.settings-content.restricted {
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 70vh;
+    padding: 20px;
 }
 
-.timer-circle::before {
-    content: '';
-    position: absolute;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--background-color, #fff);
-}
-
-.timer-text {
-    font-size: 11px;
-    color: var(--text-secondary, #666);
-    font-weight: bold;
-    min-width: 18px;
+.restricted-access-notice {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: 40px;
     text-align: center;
+    max-width: 500px;
+    width: 100%;
+    box-shadow: var(--shadow-md);
 }
 
-/* 验证码样式优化 */
-.config-code .code {
-    cursor: pointer;
-    transition: all 0.2s ease;
-    padding: 2px 4px;
-    border-radius: 4px;
+.restricted-access-notice .security-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+    display: block;
 }
 
-.config-code .code:hover {
-    background-color: var(--hover-color, #f0f0f0);
-    transform: scale(1.05);
+.restricted-access-notice h3 {
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    font-size: 20px;
+    font-weight: 600;
 }
 
-/* 配置项布局调整 */
-.config-code {
+.restricted-access-notice p {
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.6;
+}
+
+.security-options {
+    margin-top: 30px;
+}
+
+.option-group {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.option-group .switch-group {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    margin: 0 15px;
-    min-width: 100px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
 }
 
-/* 响应式设计调整 */
-@media (max-width: 768px) {
-    .config-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-        padding: 12px;
-    }
-    
-    .config-code {
-        align-self: flex-start;
-        align-items: flex-start;
-        margin: 0;
-        width: 100%;
-    }
-    
-    .code-header {
-        justify-content: flex-start;
-    }
+.option-group .switch-group label {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.option-group small {
+    color: var(--text-tertiary);
+    font-size: 13px;
+    display: block;
+    margin-top: 4px;
+}
+
+.security-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.security-actions .btn {
+    flex: 1;
+    max-width: 200px;
+}
+
+/* 确保在受限模式下正确显示 */
+#authenticator-settings .restricted-access-notice {
+    min-height: auto;
+}
+
+#authenticator-settings .settings-content.restricted {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    margin: 20px;
 }
 
 
