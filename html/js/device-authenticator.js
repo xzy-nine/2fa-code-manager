@@ -10,24 +10,28 @@ var DeviceAuthenticator = function() {
     // UI相关属性
     this.elements = {};
     this.uiInitialized = false;
+    this.isSettingsInitialized = false;  // 设置页面初始化标记
     
     this.init();
 };
 
 // 初始化
 DeviceAuthenticator.prototype.init = function() {
-    var self = this;
-    
-    this.loadSettings().then(function() {
+    var self = this;    this.loadSettings().then(function() {
         self.checkSupport().then(function() {
-            // 如果DOM已加载，则立即初始化UI
-            if (document.readyState !== 'loading') {
-                self.initUI();
-            } else {
-                // 否则等待DOM加载完成后初始化UI
-                document.addEventListener('DOMContentLoaded', function() {
+            // 检查是否在浏览器环境中（有document对象）
+            if (typeof document !== 'undefined') {
+                // 如果DOM已加载，则立即初始化UI
+                if (document.readyState !== 'loading') {
                     self.initUI();
-                });
+                    self.initSettings();  // 尝试初始化设置页面
+                } else {
+                    // 否则等待DOM加载完成后初始化UI
+                    document.addEventListener('DOMContentLoaded', function() {
+                        self.initUI();
+                        self.initSettings();  // 尝试初始化设置页面
+                    });
+                }
             }
             
             // 执行一次认证状态检查
@@ -38,13 +42,13 @@ DeviceAuthenticator.prototype.init = function() {
                 self.checkAuth();
             }, 60000);
         });
-    });
-    
-    // 监听设置变更事件
-    document.addEventListener('deviceAuthConfigChanged', function() {
-        console.log('设备验证器配置已更改，重新加载设置');
-        self.loadSettings();
-    });
+    });    // 监听设置变更事件
+    if (typeof document !== 'undefined') {
+        document.addEventListener('deviceAuthConfigChanged', function() {
+            console.log('设备验证器配置已更改，重新加载设置');
+            self.loadSettings();
+        });
+    }
 };
 
 // 进行认证状态检查
@@ -79,7 +83,8 @@ DeviceAuthenticator.prototype.initUI = function() {
         if (isPopup) {
             this.initPopupUI();
         } else if (isSettings) {
-            this.initSettingsUI();
+            // 设置页面的UI由initSettings方法处理
+            console.log('发现设置页面，将由initSettings方法处理UI');
         } else {
             // 非UI页面，跳过初始化
             return;
@@ -92,8 +97,17 @@ DeviceAuthenticator.prototype.initUI = function() {
     }
 };
 
-// 初始化设置页面UI
-DeviceAuthenticator.prototype.initSettingsUI = function() {
+// 初始化设置页面
+DeviceAuthenticator.prototype.initSettings = function() {
+    var self = this;
+    
+    // 检查是否在设置页面
+    var deviceAuthSettingsContainer = document.getElementById('device-auth-settings');
+    if (!deviceAuthSettingsContainer) return;
+    
+    // 渲染设备验证器设置UI
+    this.renderDeviceAuthSettings(deviceAuthSettingsContainer);
+    
     // 获取设置页面中的设备验证器相关元素
     this.elements = {
         enableDeviceAuth: document.getElementById('enableDeviceAuth'),
@@ -126,6 +140,57 @@ DeviceAuthenticator.prototype.initSettingsUI = function() {
     
     // 添加事件监听器
     this.attachSettingsEventListeners();
+    
+    this.isSettingsInitialized = true;
+    console.log('设备验证器设置初始化完成');
+};
+
+// 渲染设备验证器设置区域
+DeviceAuthenticator.prototype.renderDeviceAuthSettings = function(container) {
+    container.innerHTML = `
+        <section class="settings-section">
+            <h2>设备验证器设置</h2>
+            <div class="info-box">
+                <p><strong>说明：</strong>启用设备验证器可以使用生物识别（指纹、面部识别等）或PIN码来保护您的2FA代码。</p>
+            </div>
+            <div class="form-group">
+                <div class="switch-group">
+                    <label for="enableDeviceAuth">启用设备验证器</label>
+                    <label class="switch">
+                        <input type="checkbox" id="enableDeviceAuth">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <small>启用后，查看2FA代码时需要通过设备验证</small>
+            </div>
+            
+            <div id="deviceAuthDetails">
+                <div class="form-group">
+                    <label for="deviceAuthTimeout">验证超时时间（分钟）</label>
+                    <select id="deviceAuthTimeout">
+                        <option value="5">5分钟</option>
+                        <option value="15">15分钟</option>
+                        <option value="30">30分钟</option>
+                        <option value="60">1小时</option>
+                    </select>
+                    <small>验证成功后的有效时间，超时后需要重新验证</small>
+                </div>
+                
+                <div class="status-group">
+                    <div class="status-item">
+                        <label>设备验证器状态：</label>
+                        <span id="deviceAuthStatus" class="status-text">检查中...</span>
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button id="testDeviceAuth" class="btn btn-secondary">测试设备验证</button>
+                    <button id="resetCredentials" class="btn btn-warning">重置凭据</button>
+                    <button id="saveDeviceAuth" class="btn btn-primary">保存设置</button>
+                </div>
+            </div>
+        </section>
+    `;
 };
 
 // 初始化弹出页UI
@@ -880,17 +945,23 @@ DeviceAuthenticator.prototype.getStatus = function() {
     };
 };
 
-// 将DeviceAuthenticator添加到全局作用域
-if (typeof GlobalScope !== 'undefined') {
-    GlobalScope.DeviceAuthenticator = DeviceAuthenticator;
+// 创建全局实例
+var deviceAuthenticator = new DeviceAuthenticator();
+
+// 全局变量导出 - 支持多种环境
+if (typeof globalThis !== 'undefined') {
+    globalThis.DeviceAuthenticator = DeviceAuthenticator;
+    globalThis.deviceAuthenticator = deviceAuthenticator;
 } else if (typeof window !== 'undefined') {
     window.DeviceAuthenticator = DeviceAuthenticator;
+    window.deviceAuthenticator = deviceAuthenticator;
+} else if (typeof self !== 'undefined') {
+    self.DeviceAuthenticator = DeviceAuthenticator;
+    self.deviceAuthenticator = deviceAuthenticator;
 }
 
-// 创建实例并添加到全局作用域
-var deviceAuthenticator = new DeviceAuthenticator();
+// 添加到全局作用域
 if (typeof GlobalScope !== 'undefined') {
+    GlobalScope.DeviceAuthenticator = DeviceAuthenticator;
     GlobalScope.deviceAuthenticator = deviceAuthenticator;
-} else if (typeof window !== 'undefined') {
-    window.deviceAuthenticator = deviceAuthenticator;
 }

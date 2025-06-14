@@ -1,11 +1,24 @@
 // 本地存储管理模块 - 复用云端加密逻辑
-class LocalStorageManager {
-    constructor() {
+class LocalStorageManager {    constructor() {
         // 使用全局变量获取CryptoManager实例
         this.cryptoManager = new GlobalScope.CryptoManager();
         this.storageKey = 'encrypted_local_configs';
         this.configListKey = 'local_config_list';
-    }    // 获取加密密钥（复用云端逻辑）
+        this.isSettingsInitialized = false;
+        this.elements = {};
+        
+        // 检查是否在浏览器环境中（有document对象）
+        if (typeof document !== 'undefined') {
+            // 检查设置页面是否已加载
+            if (document.readyState !== 'loading') {
+                this.initSettings();
+            } else {
+                document.addEventListener('DOMContentLoaded', () => {
+                    this.initSettings();
+                });
+            }
+        }
+    }// 获取加密密钥（复用云端逻辑）
     async getEncryptionKey() {
         try {
             const settings = await this.getStorageData('encryptionConfig');
@@ -358,9 +371,7 @@ class LocalStorageManager {
             console.error('获取存储统计失败:', error);
             return { success: false, message: `获取统计失败: ${error.message}` };
         }
-    }
-
-    // 验证配置完整性
+    }    // 验证配置完整性
     async validateConfigs() {
         try {
             const configList = await this.getLocalConfigList();
@@ -381,9 +392,116 @@ class LocalStorageManager {
             return { success: false, message: `验证失败: ${error.message}` };
         }
     }
+    
+    // 设置页面相关方法
+    initSettings() {
+        // 检查是否在设置页面
+        const localStorageSettingsContainer = document.getElementById('local-storage-settings');
+        if (!localStorageSettingsContainer) return;
+        
+        // 渲染本地存储设置UI
+        this.renderLocalStorageSettings(localStorageSettingsContainer);
+        
+        // 获取元素引用
+        this.elements = {
+            allowLocalStorage: document.getElementById('allowLocalStorage'),
+            saveLocalStorageButton: document.getElementById('saveLocalStorage')
+        };
+        
+        // 绑定事件监听
+        this.setupEventListeners();
+        
+        // 加载设置
+        this.loadLocalStorageSettings();
+        
+        this.isSettingsInitialized = true;
+        console.log('本地存储设置初始化完成');
+    }
+    
+    renderLocalStorageSettings(container) {
+        container.innerHTML = `
+            <section class="settings-section">
+                <h2>本地存储设置</h2>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="allowLocalStorage">
+                        启用加密本地存储
+                    </label>
+                    <small>使用与云端相同的加密算法保护本地配置，支持离线使用</small>
+                </div>
+                <button id="saveLocalStorage" class="btn btn-primary">保存本地存储设置</button>
+            </section>
+        `;
+    }
+    
+    setupEventListeners() {
+        // 保存按钮事件
+        this.elements.saveLocalStorageButton?.addEventListener('click', () => {
+            this.saveLocalStorageSettings();
+        });
+    }
+    
+    // 加载本地存储设置
+    async loadLocalStorageSettings() {
+        try {
+            const result = await chrome.storage.local.get(['localStorageConfig']);
+            const config = result.localStorageConfig || {};
+            
+            // 设置表单值
+            if (this.elements.allowLocalStorage) {
+                this.elements.allowLocalStorage.checked = config.useEncryptedStorage || false;
+            }
+        } catch (error) {
+            console.error('加载本地存储设置失败:', error);
+            this.showSettingsMessage('加载设置失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 保存本地存储设置
+    async saveLocalStorageSettings() {
+        if (!this.isSettingsInitialized) return;
+        
+        const allowLocalStorage = this.elements.allowLocalStorage?.checked;
+
+        try {
+            await chrome.storage.local.set({
+                localStorageConfig: {
+                    useEncryptedStorage: allowLocalStorage || false
+                }
+            });
+            this.showSettingsMessage('本地存储设置已保存', 'success');
+        } catch (error) {
+            this.showSettingsMessage('保存失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 显示设置页面消息
+    showSettingsMessage(message, type) {
+        if (window.settingManager && typeof window.settingManager.showMessage === 'function') {
+            window.settingManager.showMessage(message, type);
+        } else {
+            console.log(`[本地存储设置 ${type}]`, message);
+        }
+    }
 }
 
+// 创建全局实例
+const localStorageManager = new LocalStorageManager();
+
 // 全局变量导出 - 支持多种环境
-(() => {
+if (typeof globalThis !== 'undefined') {
+    globalThis.LocalStorageManager = LocalStorageManager;
+    globalThis.localStorageManager = localStorageManager;
+} else if (typeof window !== 'undefined') {
+    window.LocalStorageManager = LocalStorageManager;
+    window.localStorageManager = localStorageManager;
+} else if (typeof self !== 'undefined') {
+    self.LocalStorageManager = LocalStorageManager;
+    self.localStorageManager = localStorageManager;
+}
+
+// 添加到全局作用域
+if (typeof GlobalScope !== 'undefined') {
     GlobalScope.LocalStorageManager = LocalStorageManager;
-})();
+    GlobalScope.localStorageManager = localStorageManager;
+}

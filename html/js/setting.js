@@ -1,24 +1,19 @@
-// 设置页面的JavaScript代码 - 全局变量版本
-const CoreUtils = GlobalScope.CoreUtils;
-
-// 从全局变量获取模块
-const Crypto = GlobalScope.CryptoManager;
-const WebDAV = GlobalScope.WebDAVClient;
-const Storage = GlobalScope.LocalStorageManager;
-const DeviceAuth = GlobalScope.DeviceAuthenticator;
-
-// 使用全局工具函数（在main.js中定义）
-// Utils 已经在全局作用域中可用，无需重新声明
+// 设置页面的JavaScript代码 - 简化版本
+// 该文件只负责初始化设置页面和协调各个模块
 
 // 设置管理器类
 class SettingManager {
     constructor() {
-        this.localStorageManager = new Storage();
-        this.cryptoManager = new Crypto();
-        this.webdavClient = new WebDAV();
-        this.deviceAuthenticator = GlobalScope.deviceAuthenticator || new DeviceAuth();
+        // 获取全局模块实例
+        this.themeManager = window.themeManager || new GlobalScope.ThemeManager();
+        this.webdavClient = window.webdavClient || new GlobalScope.WebDAVClient();
+        this.cryptoManager = window.cryptoManager || new GlobalScope.CryptoManager();
+        this.localStorageManager = window.localStorageManager || new GlobalScope.LocalStorageManager();
+        this.deviceAuthenticator = window.deviceAuthenticator || new GlobalScope.DeviceAuthenticator();
         this.init();
-    }    init() {
+    }
+    
+    init() {
         // 等待DOM加载后初始化
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => this.initApp());
@@ -28,86 +23,40 @@ class SettingManager {
     }
     
     initApp() {
+        // 设置页面只负责基础渲染和初始化
         this.renderPage();
         this.initElements();
         this.initEventListeners();
-        this.loadSettings();
-        this.initTheme(); // 初始化主题
+        this.loadModules(); // 初始化并加载各个模块
         this.initScrollProgress(); // 初始化滚动进度
-        this.initAnimations(); // 初始化动画
-    }
-
-    // 加载所有设置
-    async loadSettings() {
+    }    // 加载所有模块的设置
+    async loadModules() {
         try {
-            await this.loadWebDAVSettings();
-            await this.loadEncryptionSettings();
-            await this.loadLocalStorageSettings();
-            await this.loadDeviceAuthSettings();
+            // 初始化各个模块的设置
+            if (this.themeManager) {
+                await this.themeManager.initSettings();
+            }
+            
+            if (this.webdavClient) {
+                await this.webdavClient.initSettings();
+            }
+            
+            if (this.cryptoManager) {
+                await this.cryptoManager.initSettings();
+            }
+            
+            if (this.localStorageManager) {
+                await this.localStorageManager.initSettings();
+            }
+            
+            if (this.deviceAuthenticator) {
+                await this.deviceAuthenticator.initSettings();
+            }
         } catch (error) {
-            console.error('加载设置失败:', error);
+            console.error('加载模块设置失败:', error);
             this.showMessage('加载设置失败: ' + error.message, 'error');
         }
-    }
-
-    // 加载WebDAV设置
-    async loadWebDAVSettings() {
-        try {
-            const result = await chrome.storage.local.get(['webdavConfig']);
-            const config = result.webdavConfig || {};
-            
-            // 设置表单值
-            const urlInput = document.getElementById('webdavUrl');
-            const usernameInput = document.getElementById('webdavUsername');
-            const passwordInput = document.getElementById('webdavPassword');
-            
-            if (urlInput) urlInput.value = config.url || '';
-            if (usernameInput) usernameInput.value = config.username || '';
-            if (passwordInput) passwordInput.value = config.password || '';
-        } catch (error) {
-            console.error('加载WebDAV设置失败:', error);
-        }
-    }
-
-    // 加载加密设置
-    async loadEncryptionSettings() {
-        try {
-            const result = await chrome.storage.local.get(['encryptionConfig']);
-            const config = result.encryptionConfig || {};
-            
-            // 设置表单值
-            const enableCustomKeyCheckbox = document.getElementById('enableCustomKey');
-            const customKeyInput = document.getElementById('customKey');
-            
-            if (enableCustomKeyCheckbox) {
-                enableCustomKeyCheckbox.checked = config.useCustomKey || false;
-            }
-            if (customKeyInput) {
-                customKeyInput.value = config.customKey || '';
-                customKeyInput.style.display = config.useCustomKey ? 'block' : 'none';
-            }
-        } catch (error) {
-            console.error('加载加密设置失败:', error);
-        }
-    }
-
-    // 加载本地存储设置
-    async loadLocalStorageSettings() {
-        try {
-            const result = await chrome.storage.local.get(['localStorageConfig']);
-            const config = result.localStorageConfig || {};
-            
-            // 设置表单值
-            const allowLocalStorageCheckbox = document.getElementById('allowLocalStorage');
-            if (allowLocalStorageCheckbox) {
-                allowLocalStorageCheckbox.checked = config.useEncryptedStorage || false;
-            }
-        } catch (error) {
-            console.error('加载本地存储设置失败:', error);
-        }
-    }
-
-    // 初始化滚动进度指示器
+    }    // 初始化滚动进度指示器
     initScrollProgress() {
         const settingsContent = document.querySelector('.settings-content');
         if (!settingsContent) return;
@@ -122,69 +71,15 @@ class SettingManager {
 
         settingsContent.addEventListener('scroll', updateScrollProgress);
         updateScrollProgress(); // 初始化
-    }
-
-    // 初始化动画
-    initAnimations() {
-        // 为设置分组添加延迟动画
-        const sections = document.querySelectorAll('.settings-section');
-        sections.forEach((section, index) => {
-            section.style.animationDelay = `${index * 0.1}s`;
-        });
-
-        // 监听主题变化，添加过渡效果
-        document.addEventListener('themeChanged', () => {
-            document.body.classList.add('theme-transition');
-            setTimeout(() => {
-                document.body.classList.remove('theme-transition');            }, 500);
-        });
-    }
-
-    // 初始化事件监听器
+    }    // 初始化事件监听器
     initEventListeners() {
-        // 主题设置
-        this.elements.saveThemeButton?.addEventListener('click', () => this.saveThemeSettings());
-        this.elements.themeSelect?.addEventListener('change', () => this.applyTheme());
+        // 返回按钮
+        document.getElementById('backButton')?.addEventListener('click', () => {
+            window.close();
+        });
 
-        // 设备验证器设置
-        this.elements.enableDeviceAuth?.addEventListener('change', (e) => this.toggleDeviceAuth(e.target.checked));
-        this.elements.testDeviceAuth?.addEventListener('click', () => this.testDeviceAuth());
-        this.elements.resetCredentials?.addEventListener('click', () => this.resetDeviceCredentials());
-        this.elements.saveDeviceAuth?.addEventListener('click', () => this.saveDeviceAuthSettings());
-
-        // 测试WebDAV连接
-        this.elements.testWebdavButton?.addEventListener('click', () => this.testWebDAVConnection());
-        
-        // 保存WebDAV设置
-        this.elements.saveWebdavButton?.addEventListener('click', () => this.saveWebDAVSettings());
-        
-        // 保存加密设置
-        this.elements.saveEncryptionButton?.addEventListener('click', () => this.saveEncryptionSettings());
-        
-        // 保存本地存储设置
-        this.elements.saveLocalStorageButton?.addEventListener('click', () => this.saveLocalStorageSettings());
-        
-        // 添加配置
-        this.elements.addConfigButton?.addEventListener('click', () => this.showAddConfigModal());
-        
-        // 导出配置
-        this.elements.exportConfigsButton?.addEventListener('click', () => this.exportConfigs());
-        // 导入配置
-        this.elements.importConfigsButton?.addEventListener('click', () => this.importConfigs());
-        
-        // 备份到云端
-        this.elements.backupToCloudButton?.addEventListener('click', () => this.backupToCloud());
-        
-        // 从云端恢复
-        this.elements.restoreFromCloudButton?.addEventListener('click', () => this.restoreFromCloud());
-        
-        // 验证配置
-        this.elements.validateConfigsButton?.addEventListener('click', () => this.validateConfigs());
-        
-        // 模态框事件
-        this.elements.closeModal?.addEventListener('click', () => this.hideAddConfigModal());
-        this.elements.cancelConfigButton?.addEventListener('click', () => this.hideAddConfigModal());
-        this.elements.saveConfigButton?.addEventListener('click', () => this.saveNewConfig());
+        // 每个模块将自行添加自己的事件监听器
+        // 设置页面无需处理具体模块的事件监听
     }
 
     async testWebDAVConnection() {
@@ -373,9 +268,7 @@ class SettingManager {
                 document.body.classList.remove('theme-transition');
             }, 500);
         });
-    }
-
-    // 动态渲染页面内容
+    }    // 动态渲染页面内容
     renderPage() {
         const app = document.getElementById('app');
         if (!app) return;
@@ -384,255 +277,33 @@ class SettingManager {
             <header class="header">
                 <h1>设置</h1>
                 <button id="backButton" class="back-button">返回</button>
-            </header>              <main class="settings-content">
-                ${this.renderThemeSection()}
-                ${this.renderDeviceAuthSection()}
-                ${this.renderWebDAVSection()}
-                ${this.renderEncryptionSection()}
-                ${this.renderLocalStorageSection()}
-                ${this.renderConfigManagementSection()}
-                ${this.renderAboutSection()}
+            </header>
+            <main class="settings-content">
+                <div id="theme-settings"></div>
+                <div id="device-auth-settings"></div>
+                <div id="webdav-settings"></div>
+                <div id="encryption-settings"></div>
+                <div id="local-storage-settings"></div>
+                <div id="config-management-settings"></div>
+                <div id="about-section">
+                    <section class="settings-section">
+                        <h2>关于</h2>
+                        <div class="about-info">
+                            <p><strong>2FA验证码管家</strong></p>
+                            <p>版本: 1.0.0</p>
+                            <p>一个功能强大的2FA验证码管理浏览器扩展</p>
+                        </div>
+                    </section>
+                </div>
             </main>
-            
-            ${this.renderAddConfigModal()}
+            <div id="modals-container"></div>
         `;
-    }    // 渲染WebDAV设置区域
-    renderWebDAVSection() {
-        return `
-            <section class="settings-section">
-                <h2>WebDAV同步设置</h2>
-                <div class="info-box">
-                    <p><strong>注意：</strong>要使用云端同步功能（备份到云端、从云端恢复），必须先配置WebDAV服务器信息。</p>
-                </div>
-                <div class="form-group">
-                    <label for="webdavUrl">服务器地址</label>
-                    <input type="url" id="webdavUrl" placeholder="https://your-server.com/webdav">
-                </div>
-                <div class="form-group">
-                    <label for="webdavUsername">用户名</label>
-                    <input type="text" id="webdavUsername" placeholder="用户名">
-                </div>
-                <div class="form-group">
-                    <label for="webdavPassword">密码</label>
-                    <input type="password" id="webdavPassword" placeholder="密码">
-                </div>
-                <button id="testWebdav" class="btn btn-secondary">测试连接</button>
-                <button id="saveWebdav" class="btn btn-primary">保存WebDAV设置</button>
-            </section>
-        `;
-    }    // 渲染加密设置区域
-    renderEncryptionSection() {
-        return `
-            <section class="settings-section">
-                <h2>加密设置</h2>
-                <div class="form-group">
-                    <label for="encryptionKey">自定义加密密钥</label>
-                    <input type="password" id="encryptionKey" placeholder="留空使用简单加密">
-                    <small>输入强密码以提供更高安全性</small>
-                </div>
-                <button id="saveEncryption" class="btn btn-primary">保存加密设置</button>
-            </section>
-        `;
-    }
-
-    // 渲染本地存储设置区域
-    renderLocalStorageSection() {
-        return `
-            <section class="settings-section">
-                <h2>本地存储设置</h2>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="allowLocalStorage">
-                        启用加密本地存储
-                    </label>
-                    <small>使用与云端相同的加密算法保护本地配置，支持离线使用</small>
-                </div>
-                <button id="saveLocalStorage" class="btn btn-primary">保存本地存储设置</button>
-            </section>
-        `;
-    }
-
-    // 渲染配置管理区域
-    renderConfigManagementSection() {
-        return `
-            <section class="settings-section">
-                <h2>配置管理</h2>
-                <div class="config-actions">
-                    <button id="addConfig" class="btn btn-secondary">手动添加配置</button>
-                    <button id="exportConfigs" class="btn btn-secondary">导出配置</button>
-                    <button id="importConfigs" class="btn btn-secondary">导入配置</button>
-                    <button id="backupToCloud" class="btn btn-primary">备份到云端</button>
-                    <button id="restoreFromCloud" class="btn btn-info">从云端恢复</button>
-                    <button id="validateConfigs" class="btn btn-warning">验证配置</button>
-                </div>
-                <div class="config-list" id="configList">
-                    <!-- 配置列表将在这里动态生成 -->
-                </div>
-            </section>
-        `;
-    }
-
-    // 渲染关于信息区域
-    renderAboutSection() {
-        return `
-            <section class="settings-section">
-                <h2>关于</h2>
-                <div class="about-info">
-                    <p><strong>2FA验证码管家</strong></p>
-                    <p>版本: 1.0.0</p>
-                    <p>一个功能强大的2FA验证码管理浏览器扩展</p>
-                </div>
-            </section>
-        `;
-    }
-
-    // 渲染添加配置模态框
-    renderAddConfigModal() {
-        return `
-            <div id="addConfigModal" class="modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>添加2FA配置</h3>
-                        <span class="close">&times;</span>
-                    </div>
-                    <div class="modal-body">
-                        <div class="form-group">
-                            <label for="configName">配置名称</label>
-                            <input type="text" id="configName" placeholder="例如：GitHub">
-                        </div>
-                        <div class="form-group">
-                            <label for="configSecret">密钥 (Secret)</label>
-                            <input type="text" id="configSecret" placeholder="Base32编码的密钥">
-                        </div>
-                        <div class="form-group">
-                            <label for="configIssuer">发行方</label>
-                            <input type="text" id="configIssuer" placeholder="例如：GitHub">
-                        </div>
-                        <div class="form-group">
-                            <label for="configAccount">账户</label>
-                            <input type="text" id="configAccount" placeholder="例如：username@example.com">
-                        </div>
-                        <div class="form-group">
-                            <label for="configDigits">验证码位数</label>
-                            <select id="configDigits">
-                                <option value="6">6位</option>
-                                <option value="8">8位</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="configPeriod">更新周期(秒)</label>
-                            <input type="number" id="configPeriod" value="30" min="15" max="300">
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button id="saveConfig" class="btn btn-primary">保存</button>
-                        <button id="cancelConfig" class="btn btn-secondary">取消</button>
-                    </div>
-                </div>
-            </div>
-        `;    }
-
-    // 渲染设备验证器设置区域
-    renderDeviceAuthSection() {
-        return `
-            <section class="settings-section">
-                <h2>设备验证器设置</h2>
-                <div class="info-box">
-                    <p><strong>说明：</strong>启用设备验证器可以使用生物识别（指纹、面部识别等）或PIN码来保护您的2FA代码。</p>
-                </div>
-                <div class="form-group">
-                    <div class="switch-group">
-                        <label for="enableDeviceAuth">启用设备验证器</label>
-                        <label class="switch">
-                            <input type="checkbox" id="enableDeviceAuth">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <small>启用后，查看2FA代码时需要通过设备验证</small>
-                </div>
-                
-                <div id="deviceAuthDetails">
-                    <div class="form-group">
-                        <label for="deviceAuthTimeout">验证超时时间（分钟）</label>
-                        <select id="deviceAuthTimeout">
-                            <option value="5">5分钟</option>
-                            <option value="15">15分钟</option>
-                            <option value="30">30分钟</option>
-                            <option value="60">1小时</option>
-                        </select>
-                        <small>验证成功后的有效时间，超时后需要重新验证</small>
-                    </div>
-                    
-                    <div class="status-group">
-                        <div class="status-item">
-                            <label>设备验证器状态：</label>
-                            <span id="deviceAuthStatus" class="status-text">检查中...</span>
-                        </div>
-                    </div>
-                    
-                    <div class="button-group">
-                        <button id="testDeviceAuth" class="btn btn-secondary">测试设备验证</button>
-                        <button id="resetCredentials" class="btn btn-warning">重置凭据</button>
-                        <button id="saveDeviceAuth" class="btn btn-primary">保存设置</button>
-                    </div>
-                </div>
-            </section>
-        `;
-    }
-
-    // 渲染主题设置区域
-    renderThemeSection() {
-        return `
-            <section class="settings-section">
-                <h2>主题设置</h2>
-                <div class="form-group">
-                    <label for="themeSelect">选择主题</label>
-                    <select id="themeSelect">
-                        <option value="auto">跟随系统</option>
-                        <option value="light">浅色模式</option>
-                        <option value="dark">深色模式</option>
-                    </select>
-                    <small>选择您偏好的主题模式，"跟随系统"将根据系统设置自动切换</small>
-                </div>
-                <button id="saveTheme" class="btn btn-primary">保存主题设置</button>
-            </section>
-        `;
-    }    initElements() {
-        // 获取所有DOM元素        
-        this.elements = {
-            backButton: document.getElementById('backButton'),
-            // 主题设置
-            themeSelect: document.getElementById('themeSelect'),
-            saveThemeButton: document.getElementById('saveTheme'),
-            // WebDAV设置
-            testWebdavButton: document.getElementById('testWebdav'),
-            saveWebdavButton: document.getElementById('saveWebdav'),
-            // 加密设置
-            saveEncryptionButton: document.getElementById('saveEncryption'),
-            // 本地存储设置
-            saveLocalStorageButton: document.getElementById('saveLocalStorage'),
-            // 配置管理
-            addConfigButton: document.getElementById('addConfig'),
-            exportConfigsButton: document.getElementById('exportConfigs'),
-            importConfigsButton: document.getElementById('importConfigs'),
-            backupToCloudButton: document.getElementById('backupToCloud'),
-            restoreFromCloudButton: document.getElementById('restoreFromCloud'),
-            validateConfigsButton: document.getElementById('validateConfigs'),
-            // 添加配置模态框
-            addConfigModal: document.getElementById('addConfigModal'),
-            closeModal: document.querySelector('.close'),
-            saveConfigButton: document.getElementById('saveConfig'),
-            cancelConfigButton: document.getElementById('cancelConfig'),
-            // 设备验证器设置
-            enableDeviceAuth: document.getElementById('enableDeviceAuth'),
-            testDeviceAuthButton: document.getElementById('testDeviceAuth'),
-            resetCredentialsButton: document.getElementById('resetCredentials'),
-            authTimeout: document.getElementById('authTimeout'),
-            deviceSupportStatus: document.getElementById('deviceSupportStatus'),
-            credentialStatus: document.getElementById('credentialStatus'),
-            deviceAuthDetails: document.getElementById('deviceAuthDetails'),
-            saveDeviceAuth: document.getElementById('saveDeviceAuth')
-        };
+    }    // 初始化元素 - 简化版
+    initElements() {
+        // 设置页面只负责最基本的元素引用
+        // 各个模块负责初始化和管理自己的DOM元素
+        this.elements = this.elements || {};
+        this.elements.backButton = document.getElementById('backButton');
     }
 
     initEventListeners() {
@@ -870,9 +541,7 @@ class SettingManager {
             console.error('加载设备验证器设置失败:', error);
             this.showMessage('加载设备验证器设置失败', 'error');
         }
-    }
-
-    /**
+    }    /**
      * 显示消息提示
      * @param {string} message - 消息内容
      * @param {string} type - 消息类型（success, error, info, warning）
@@ -950,68 +619,6 @@ class SettingManager {
                 }
             }, 300);
         }, duration);
-    }
-
-    // 设备验证器相关方法
-    
-    async saveDeviceAuthSettings() {
-        try {
-            // 直接使用设备验证器实例保存设置
-            await this.deviceAuthenticator.saveDeviceAuthSettings();
-            
-            // 为确保设置被正确保存，额外进行备份保存
-            const enabledValue = this.elements.enableDeviceAuth?.checked || false;
-            const timeoutValue = parseInt(this.elements.deviceAuthTimeout?.value || '15');
-            
-            // 直接同步到chrome.storage (额外备份)
-            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                // 直接设置单独的键值，使状态更易于检测
-                await chrome.storage.local.set({
-                    'device_auth_enabled': enabledValue
-                });
-                
-                console.log('设置页面: 设备验证器状态已直接保存到chrome.storage:', enabledValue ? '启用' : '禁用');
-                
-                // 发送消息通知所有页面更新设备验证器状态
-                if (chrome.runtime && chrome.runtime.sendMessage) {
-                    try {
-                        chrome.runtime.sendMessage({
-                            action: 'deviceAuthSettingsChanged',
-                            enabled: enabledValue,
-                            timeout: timeoutValue
-                        });
-                        console.log('已发送设备验证器状态更新消息');
-                    } catch (e) {
-                        console.warn('发送消息失败:', e);
-                    }
-                }
-            }
-            
-            this.showMessage('设备验证器设置已保存', 'success');
-        } catch (error) {
-            console.error('保存设备验证器设置失败:', error);
-            this.showMessage('保存设置失败: ' + error.message, 'error');
-        }
-    }
-    
-    async testDeviceAuth() {
-        try {
-            // 使用设备验证器实例测试验证
-            await this.deviceAuthenticator.testDeviceAuth();
-        } catch (error) {
-            console.error('测试设备验证失败:', error);
-            this.showMessage('测试失败: ' + error.message, 'error');
-        }
-    }
-    
-    async resetDeviceCredentials() {
-        try {
-            // 使用设备验证器实例重置凭据
-            await this.deviceAuthenticator.resetDeviceCredentials();
-        } catch (error) {
-            console.error('重置设备凭据失败:', error);
-            this.showMessage('重置失败: ' + error.message, 'error');
-        }
     }
 }
 

@@ -2,13 +2,25 @@
 class ThemeManager {
     constructor() {
         this.currentTheme = 'auto';
+        this.isSettingsInitialized = false;
+        this.elements = {};
         this.init();
-    }
-
-    async init() {
+    }    async init() {
         await this.loadTheme();
         this.applyTheme();
         this.setupMediaQueryListener();
+
+        // 检查是否在浏览器环境中（有document对象）
+        if (typeof document !== 'undefined') {
+            // 检查设置页面是否已加载
+            if (document.readyState !== 'loading') {
+                this.initSettings();
+            } else {
+                document.addEventListener('DOMContentLoaded', () => {
+                    this.initSettings();
+                });
+            }
+        }
     }
 
     async loadTheme() {
@@ -43,6 +55,12 @@ class ThemeManager {
         }
         
         this.applyTheme();
+        
+        // 显示保存成功消息（如果在设置页面）
+        if (this.isSettingsInitialized && window.settingManager) {
+            window.settingManager.showMessage('主题设置已保存', 'success');
+            this.showSuccessAnimation(this.elements.saveThemeButton);
+        }
     }
 
     applyTheme() {
@@ -66,6 +84,11 @@ class ThemeManager {
 
         // 触发主题变更事件
         this.dispatchThemeChangeEvent();
+        
+        // 如果在设置页面，更新选择框
+        if (this.isSettingsInitialized && this.elements.themeSelect) {
+            this.elements.themeSelect.value = this.currentTheme;
+        }
     }
 
     setupMediaQueryListener() {
@@ -97,6 +120,83 @@ class ThemeManager {
                 ? 'dark' : 'light';
         }
         return this.currentTheme;
+    }
+    
+    // 设置页面相关方法
+    initSettings() {
+        // 检查是否在设置页面
+        const themeSettingsContainer = document.getElementById('theme-settings');
+        if (!themeSettingsContainer) return;
+        
+        // 渲染主题设置UI
+        this.renderThemeSettings(themeSettingsContainer);
+        
+        // 获取元素引用
+        this.elements = {
+            themeSelect: document.getElementById('themeSelect'),
+            saveThemeButton: document.getElementById('saveTheme')
+        };
+        
+        // 绑定事件监听
+        this.setupEventListeners();
+        
+        // 更新选择框值
+        if (this.elements.themeSelect) {
+            this.elements.themeSelect.value = this.currentTheme;
+        }
+        
+        this.isSettingsInitialized = true;
+        console.log('主题设置初始化完成');
+    }
+    
+    renderThemeSettings(container) {
+        container.innerHTML = `
+            <section class="settings-section">
+                <h2>主题设置</h2>
+                <div class="form-group">
+                    <label for="themeSelect">选择主题</label>
+                    <select id="themeSelect">
+                        <option value="auto">跟随系统</option>
+                        <option value="light">浅色模式</option>
+                        <option value="dark">深色模式</option>
+                    </select>
+                    <small>选择您偏好的主题模式，"跟随系统"将根据系统设置自动切换</small>
+                </div>
+                <button id="saveTheme" class="btn btn-primary">保存主题设置</button>
+            </section>
+        `;
+    }
+    
+    setupEventListeners() {
+        // 保存按钮事件
+        this.elements.saveThemeButton?.addEventListener('click', () => {
+            const selectedTheme = this.elements.themeSelect?.value || 'auto';
+            this.saveTheme(selectedTheme);
+        });
+        
+        // 主题选择变更事件
+        this.elements.themeSelect?.addEventListener('change', () => {
+            const selectedTheme = this.elements.themeSelect?.value || 'auto';
+            // 实时预览主题效果但不保存
+            this.currentTheme = selectedTheme;
+            this.applyTheme();
+        });
+    }
+    
+    // 按钮成功动画效果
+    showSuccessAnimation(button) {
+        if (!button) return;
+        
+        const originalText = button.textContent;
+        const originalClass = button.className;
+        
+        button.textContent = '✓ 已保存';
+        button.className = `${originalClass} btn-success`;
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.className = originalClass;
+        }, 2000);
     }
 
     // 获取当前主题
@@ -154,10 +254,12 @@ if (typeof GlobalScope !== 'undefined') {
 }
 
 // 页面加载完成后立即初始化
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            globalThemeManager.init();
+        });
+    } else {
         globalThemeManager.init();
-    });
-} else {
-    globalThemeManager.init();
+    }
 }

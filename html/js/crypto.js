@@ -15,9 +15,22 @@ const GlobalScope = (() => {
 })();
 
 // 加密解密模块
-class CryptoManager {
-    constructor() {
+class CryptoManager {    constructor() {
         this.defaultKey = 'default-2fa-key-2025';
+        this.isSettingsInitialized = false;
+        this.elements = {};
+        
+        // 检查是否在浏览器环境中（有document对象）
+        if (typeof document !== 'undefined') {
+            // 检查设置页面是否已加载
+            if (document.readyState !== 'loading') {
+                this.initSettings();
+            } else {
+                document.addEventListener('DOMContentLoaded', () => {
+                    this.initSettings();
+                });
+            }
+        }
     }
 
     // 生成密钥
@@ -185,9 +198,7 @@ class CryptoManager {
         }
         
         return result;
-    }
-
-    // 验证密钥强度
+    }    // 验证密钥强度
     validateKeyStrength(key) {
         if (!key || key.length < 8) {
             return { valid: false, message: '密钥长度至少8位' };
@@ -205,9 +216,123 @@ class CryptoManager {
         }        
         return { valid: true, strength: strength };
     }
+    
+    // 设置页面相关方法
+    initSettings() {
+        // 检查是否在设置页面
+        const encryptionSettingsContainer = document.getElementById('encryption-settings');
+        if (!encryptionSettingsContainer) return;
+        
+        // 渲染加密设置UI
+        this.renderEncryptionSettings(encryptionSettingsContainer);
+        
+        // 获取元素引用
+        this.elements = {
+            encryptionKey: document.getElementById('encryptionKey'),
+            saveEncryptionButton: document.getElementById('saveEncryption')
+        };
+        
+        // 绑定事件监听
+        this.setupEventListeners();
+        
+        // 加载设置
+        this.loadEncryptionSettings();
+        
+        this.isSettingsInitialized = true;
+        console.log('加密设置初始化完成');
+    }
+    
+    renderEncryptionSettings(container) {
+        container.innerHTML = `
+            <section class="settings-section">
+                <h2>加密设置</h2>
+                <div class="form-group">
+                    <label for="encryptionKey">自定义加密密钥</label>
+                    <input type="password" id="encryptionKey" placeholder="留空使用简单加密">
+                    <small>输入强密码以提供更高安全性</small>
+                </div>
+                <button id="saveEncryption" class="btn btn-primary">保存加密设置</button>
+            </section>
+        `;
+    }
+    
+    setupEventListeners() {
+        // 保存按钮事件
+        this.elements.saveEncryptionButton?.addEventListener('click', () => {
+            this.saveEncryptionSettings();
+        });
+    }
+    
+    // 加载加密设置
+    async loadEncryptionSettings() {
+        try {
+            const result = await chrome.storage.local.get(['encryptionConfig']);
+            const config = result.encryptionConfig || {};
+            
+            // 设置表单值
+            if (this.elements.encryptionKey) {
+                this.elements.encryptionKey.value = config.customKey || '';
+            }
+        } catch (error) {
+            console.error('加载加密设置失败:', error);
+            this.showSettingsMessage('加载设置失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 保存加密设置
+    async saveEncryptionSettings() {
+        if (!this.isSettingsInitialized) return;
+        
+        const encryptionKey = this.elements.encryptionKey?.value;
+
+        // 验证密钥强度
+        if (encryptionKey) {
+            const validation = this.validateKeyStrength(encryptionKey);
+            if (!validation.valid) {
+                this.showSettingsMessage(validation.message, 'warning');
+                return;
+            }
+        }
+
+        try {
+            await chrome.storage.local.set({
+                encryptionConfig: {
+                    customKey: encryptionKey
+                }
+            });
+            this.showSettingsMessage('加密设置已保存', 'success');
+        } catch (error) {
+            this.showSettingsMessage('保存失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 显示设置页面消息
+    showSettingsMessage(message, type) {
+        if (window.settingManager && typeof window.settingManager.showMessage === 'function') {
+            window.settingManager.showMessage(message, type);
+        } else {
+            console.log(`[加密设置 ${type}]`, message);
+        }
+    }
 }
 
+// 创建全局实例
+const cryptoManager = new CryptoManager();
+
 // 全局变量导出 - 支持多种环境
-(() => {
+if (typeof globalThis !== 'undefined') {
+    globalThis.CryptoManager = CryptoManager;
+    globalThis.cryptoManager = cryptoManager;
+} else if (typeof window !== 'undefined') {
+    window.CryptoManager = CryptoManager;
+    window.cryptoManager = cryptoManager;
+} else if (typeof self !== 'undefined') {
+    self.CryptoManager = CryptoManager;
+    self.cryptoManager = cryptoManager;
+}
+
+// 添加到全局作用域
+if (typeof GlobalScope !== 'undefined') {
     GlobalScope.CryptoManager = CryptoManager;
-})();
+    GlobalScope.cryptoManager = cryptoManager;
+}

@@ -1,11 +1,24 @@
 // WebDAV客户端模块
-class WebDAVClient {
-    constructor(config = {}) {
+class WebDAVClient {    constructor(config = {}) {
         this.baseUrl = config.url || '';
         this.username = config.username || '';
         this.password = config.password || '';
         this.configPath = '/2fa-configs/';
         this.configListFile = 'config-list.json';
+        this.isSettingsInitialized = false;
+        this.elements = {};
+        
+        // 检查是否在浏览器环境中（有document对象）
+        if (typeof document !== 'undefined') {
+            // 检查设置页面是否已加载
+            if (document.readyState !== 'loading') {
+                this.initSettings();
+            } else {
+                document.addEventListener('DOMContentLoaded', () => {
+                    this.initSettings();
+                });
+            }
+        }
     }
 
     // 设置认证信息
@@ -13,6 +26,152 @@ class WebDAVClient {
         this.baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
         this.username = username;
         this.password = password;
+    }
+    
+    // 设置页面相关方法
+    async initSettings() {
+        // 检查是否在设置页面
+        const webdavSettingsContainer = document.getElementById('webdav-settings');
+        if (!webdavSettingsContainer) return;
+        
+        // 渲染WebDAV设置UI
+        this.renderWebDAVSettings(webdavSettingsContainer);
+        
+        // 获取元素引用
+        this.elements = {
+            urlInput: document.getElementById('webdavUrl'),
+            usernameInput: document.getElementById('webdavUsername'),
+            passwordInput: document.getElementById('webdavPassword'),
+            testButton: document.getElementById('testWebdav'),
+            saveButton: document.getElementById('saveWebdav')
+        };
+        
+        // 绑定事件监听
+        this.setupEventListeners();
+        
+        // 加载设置
+        await this.loadWebDAVSettings();
+        
+        this.isSettingsInitialized = true;
+        console.log('WebDAV设置初始化完成');
+    }
+    
+    renderWebDAVSettings(container) {
+        container.innerHTML = `
+            <section class="settings-section">
+                <h2>WebDAV同步设置</h2>
+                <div class="info-box">
+                    <p><strong>注意：</strong>要使用云端同步功能（备份到云端、从云端恢复），必须先配置WebDAV服务器信息。</p>
+                </div>
+                <div class="form-group">
+                    <label for="webdavUrl">服务器地址</label>
+                    <input type="url" id="webdavUrl" placeholder="https://your-server.com/webdav">
+                </div>
+                <div class="form-group">
+                    <label for="webdavUsername">用户名</label>
+                    <input type="text" id="webdavUsername" placeholder="用户名">
+                </div>
+                <div class="form-group">
+                    <label for="webdavPassword">密码</label>
+                    <input type="password" id="webdavPassword" placeholder="密码">
+                </div>
+                <button id="testWebdav" class="btn btn-secondary">测试连接</button>
+                <button id="saveWebdav" class="btn btn-primary">保存WebDAV设置</button>
+            </section>
+        `;
+    }
+    
+    setupEventListeners() {
+        // 测试按钮事件
+        this.elements.testButton?.addEventListener('click', () => {
+            this.testWebDAVConnection();
+        });
+        
+        // 保存按钮事件
+        this.elements.saveButton?.addEventListener('click', () => {
+            this.saveWebDAVSettings();
+        });
+    }
+    
+    // 加载WebDAV设置
+    async loadWebDAVSettings() {
+        try {
+            const result = await chrome.storage.local.get(['webdavConfig']);
+            const config = result.webdavConfig || {};
+            
+            // 设置表单值
+            if (this.elements.urlInput) this.elements.urlInput.value = config.url || '';
+            if (this.elements.usernameInput) this.elements.usernameInput.value = config.username || '';
+            if (this.elements.passwordInput) this.elements.passwordInput.value = config.password || '';
+            
+            // 更新内部属性
+            this.baseUrl = config.url || '';
+            this.username = config.username || '';
+            this.password = config.password || '';
+        } catch (error) {
+            console.error('加载WebDAV设置失败:', error);
+            this.showSettingsMessage('加载设置失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 测试WebDAV连接
+    async testWebDAVConnection() {
+        if (!this.isSettingsInitialized) return;
+        
+        const url = this.elements.urlInput?.value;
+        const username = this.elements.usernameInput?.value;
+        const password = this.elements.passwordInput?.value;
+
+        if (!url || !username || !password) {
+            this.showSettingsMessage('请填写完整的WebDAV信息', 'error');
+            return;
+        }
+
+        try {
+            this.showSettingsMessage('正在测试连接...', 'info');
+            this.setCredentials(url, username, password);
+            const result = await this.testConnection();
+            
+            if (result.success) {
+                this.showSettingsMessage('WebDAV连接测试成功！', 'success');
+            } else {
+                this.showSettingsMessage('连接测试失败: ' + result.message, 'error');
+            }
+        } catch (error) {
+            this.showSettingsMessage('连接测试失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 保存WebDAV设置
+    async saveWebDAVSettings() {
+        if (!this.isSettingsInitialized) return;
+        
+        const config = {
+            url: this.elements.urlInput?.value,
+            username: this.elements.usernameInput?.value,
+            password: this.elements.passwordInput?.value
+        };
+
+        try {
+            await chrome.storage.local.set({ webdavConfig: config });
+            this.showSettingsMessage('WebDAV设置已保存', 'success');
+            
+            // 更新内部属性
+            this.baseUrl = config.url || '';
+            this.username = config.username || '';
+            this.password = config.password || '';
+        } catch (error) {
+            this.showSettingsMessage('保存失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 显示设置页面消息
+    showSettingsMessage(message, type) {
+        if (window.settingManager && typeof window.settingManager.showMessage === 'function') {
+            window.settingManager.showMessage(message, type);
+        } else {
+            console.log(`[WebDAV ${type}]`, message);
+        }
     }
 
     // 创建认证头
@@ -399,7 +558,23 @@ class WebDAVClient {
     }
 }
 
+// 创建全局实例
+const globalWebDAVClient = new WebDAVClient();
+
 // 全局变量导出 - 支持多种环境
-(() => {
+if (typeof globalThis !== 'undefined') {
+    globalThis.WebDAVClient = WebDAVClient;
+    globalThis.webdavClient = globalWebDAVClient;
+} else if (typeof window !== 'undefined') {
+    window.WebDAVClient = WebDAVClient;
+    window.webdavClient = globalWebDAVClient;
+} else if (typeof self !== 'undefined') {
+    self.WebDAVClient = WebDAVClient;
+    self.webdavClient = globalWebDAVClient;
+}
+
+// 添加到全局作用域
+if (typeof GlobalScope !== 'undefined') {
     GlobalScope.WebDAVClient = WebDAVClient;
-})();
+    GlobalScope.webdavClient = globalWebDAVClient;
+}

@@ -6,9 +6,14 @@
     <title>2FA验证码管家 - 设置</title>
     <link rel="stylesheet" href="../css/settings.css">
 </head>
-<body id="authenticator-settings">    <!-- 主容器 - 将由JS动态生成内容 -->
-    <div id="app" class="container">
-        <!-- 页面内容将通过JavaScript动态加载 -->    </div>      <!-- 按依赖顺序加载模块 -->
+<body id="authenticator-settings">    <!-- 主容器 - 将由JS动态生成内容 -->    <div id="app" class="container">
+        <!-- 页面头部 -->
+        <div class="header">
+            <button id="backButton" class="back-button">返回</button>
+            <h2 class="page-title">设置</h2>
+        </div>
+        <!-- 页面内容将通过JavaScript动态加载 -->
+    </div><!-- 按依赖顺序加载模块 -->
     <!-- 首先加载基础模块和全局作用域 -->
     <script src="./js/crypto.js"></script>
     <script src="./js/globals.js"></script>
