@@ -1,9 +1,5 @@
 // 设置页面的JavaScript代码 - 全局变量版本
-// 使用全局变量导入模块（GlobalScope已在crypto.js中定义）
-
-// 引用 core 中的公共工具函数（使用全局变量）
 const CoreUtils = GlobalScope.CoreUtils;
-// IconManager 已在 core/iconManager.js 中定义为全局常量，直接使用 GlobalScope.IconManager
 
 // 从全局变量获取模块
 const Crypto = GlobalScope.CryptoManager;
@@ -22,16 +18,16 @@ class SettingManager {
         this.webdavClient = new WebDAV();
         this.deviceAuthenticator = GlobalScope.deviceAuthenticator || new DeviceAuth();
         this.init();
-    }
-
-    init() {
+    }    init() {
         // 等待DOM加载后初始化
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => this.initApp());
         } else {
             this.initApp();
         }
-    }    initApp() {
+    }
+    
+    initApp() {
         this.renderPage();
         this.initElements();
         this.initEventListeners();
@@ -39,6 +35,76 @@ class SettingManager {
         this.initTheme(); // 初始化主题
         this.initScrollProgress(); // 初始化滚动进度
         this.initAnimations(); // 初始化动画
+    }
+
+    // 加载所有设置
+    async loadSettings() {
+        try {
+            await this.loadWebDAVSettings();
+            await this.loadEncryptionSettings();
+            await this.loadLocalStorageSettings();
+            await this.loadDeviceAuthSettings();
+        } catch (error) {
+            console.error('加载设置失败:', error);
+            this.showMessage('加载设置失败: ' + error.message, 'error');
+        }
+    }
+
+    // 加载WebDAV设置
+    async loadWebDAVSettings() {
+        try {
+            const result = await chrome.storage.local.get(['webdavConfig']);
+            const config = result.webdavConfig || {};
+            
+            // 设置表单值
+            const urlInput = document.getElementById('webdavUrl');
+            const usernameInput = document.getElementById('webdavUsername');
+            const passwordInput = document.getElementById('webdavPassword');
+            
+            if (urlInput) urlInput.value = config.url || '';
+            if (usernameInput) usernameInput.value = config.username || '';
+            if (passwordInput) passwordInput.value = config.password || '';
+        } catch (error) {
+            console.error('加载WebDAV设置失败:', error);
+        }
+    }
+
+    // 加载加密设置
+    async loadEncryptionSettings() {
+        try {
+            const result = await chrome.storage.local.get(['encryptionConfig']);
+            const config = result.encryptionConfig || {};
+            
+            // 设置表单值
+            const enableCustomKeyCheckbox = document.getElementById('enableCustomKey');
+            const customKeyInput = document.getElementById('customKey');
+            
+            if (enableCustomKeyCheckbox) {
+                enableCustomKeyCheckbox.checked = config.useCustomKey || false;
+            }
+            if (customKeyInput) {
+                customKeyInput.value = config.customKey || '';
+                customKeyInput.style.display = config.useCustomKey ? 'block' : 'none';
+            }
+        } catch (error) {
+            console.error('加载加密设置失败:', error);
+        }
+    }
+
+    // 加载本地存储设置
+    async loadLocalStorageSettings() {
+        try {
+            const result = await chrome.storage.local.get(['localStorageConfig']);
+            const config = result.localStorageConfig || {};
+            
+            // 设置表单值
+            const allowLocalStorageCheckbox = document.getElementById('allowLocalStorage');
+            if (allowLocalStorageCheckbox) {
+                allowLocalStorageCheckbox.checked = config.useEncryptedStorage || false;
+            }
+        } catch (error) {
+            console.error('加载本地存储设置失败:', error);
+        }
     }
 
     // 初始化滚动进度指示器
@@ -56,6 +122,240 @@ class SettingManager {
 
         settingsContent.addEventListener('scroll', updateScrollProgress);
         updateScrollProgress(); // 初始化
+    }
+
+    // 初始化动画
+    initAnimations() {
+        // 为设置分组添加延迟动画
+        const sections = document.querySelectorAll('.settings-section');
+        sections.forEach((section, index) => {
+            section.style.animationDelay = `${index * 0.1}s`;
+        });
+
+        // 监听主题变化，添加过渡效果
+        document.addEventListener('themeChanged', () => {
+            document.body.classList.add('theme-transition');
+            setTimeout(() => {
+                document.body.classList.remove('theme-transition');            }, 500);
+        });
+    }
+
+    // 初始化事件监听器
+    initEventListeners() {
+        // 主题设置
+        this.elements.saveThemeButton?.addEventListener('click', () => this.saveThemeSettings());
+        this.elements.themeSelect?.addEventListener('change', () => this.applyTheme());
+
+        // 设备验证器设置
+        this.elements.enableDeviceAuth?.addEventListener('change', (e) => this.toggleDeviceAuth(e.target.checked));
+        this.elements.testDeviceAuth?.addEventListener('click', () => this.testDeviceAuth());
+        this.elements.resetCredentials?.addEventListener('click', () => this.resetDeviceCredentials());
+        this.elements.saveDeviceAuth?.addEventListener('click', () => this.saveDeviceAuthSettings());
+
+        // 测试WebDAV连接
+        this.elements.testWebdavButton?.addEventListener('click', () => this.testWebDAVConnection());
+        
+        // 保存WebDAV设置
+        this.elements.saveWebdavButton?.addEventListener('click', () => this.saveWebDAVSettings());
+        
+        // 保存加密设置
+        this.elements.saveEncryptionButton?.addEventListener('click', () => this.saveEncryptionSettings());
+        
+        // 保存本地存储设置
+        this.elements.saveLocalStorageButton?.addEventListener('click', () => this.saveLocalStorageSettings());
+        
+        // 添加配置
+        this.elements.addConfigButton?.addEventListener('click', () => this.showAddConfigModal());
+        
+        // 导出配置
+        this.elements.exportConfigsButton?.addEventListener('click', () => this.exportConfigs());
+        // 导入配置
+        this.elements.importConfigsButton?.addEventListener('click', () => this.importConfigs());
+        
+        // 备份到云端
+        this.elements.backupToCloudButton?.addEventListener('click', () => this.backupToCloud());
+        
+        // 从云端恢复
+        this.elements.restoreFromCloudButton?.addEventListener('click', () => this.restoreFromCloud());
+        
+        // 验证配置
+        this.elements.validateConfigsButton?.addEventListener('click', () => this.validateConfigs());
+        
+        // 模态框事件
+        this.elements.closeModal?.addEventListener('click', () => this.hideAddConfigModal());
+        this.elements.cancelConfigButton?.addEventListener('click', () => this.hideAddConfigModal());
+        this.elements.saveConfigButton?.addEventListener('click', () => this.saveNewConfig());
+    }
+
+    async testWebDAVConnection() {
+        const url = document.getElementById('webdavUrl')?.value;
+        const username = document.getElementById('webdavUsername')?.value;
+        const password = document.getElementById('webdavPassword')?.value;
+
+        if (!url || !username || !password) {
+            this.showMessage('请填写完整的WebDAV信息', 'error');
+            return;
+        }
+
+        try {
+            this.showMessage('正在测试连接...', 'info');
+            this.webdavClient.setCredentials(url, username, password);
+            const result = await this.webdavClient.testConnection();
+            
+            if (result.success) {
+                this.showMessage('WebDAV连接测试成功！', 'success');
+            } else {
+                this.showMessage('连接测试失败: ' + result.error, 'error');
+            }
+        } catch (error) {
+            this.showMessage('连接测试失败: ' + error.message, 'error');
+        }
+    }
+
+    async saveWebDAVSettings() {
+        const config = {
+            url: document.getElementById('webdavUrl')?.value,
+            username: document.getElementById('webdavUsername')?.value,
+            password: document.getElementById('webdavPassword')?.value
+        };
+
+        try {
+            await chrome.storage.local.set({ webdavConfig: config });
+            this.showMessage('WebDAV设置已保存', 'success');
+        } catch (error) {
+            this.showMessage('保存失败: ' + error.message, 'error');
+        }
+    }
+
+    async saveEncryptionSettings() {
+        const encryptionKey = document.getElementById('encryptionKey')?.value;
+        const enableBiometric = document.getElementById('enableBiometric')?.checked;
+
+        try {
+            await chrome.storage.local.set({
+                encryptionConfig: {
+                    customKey: encryptionKey,
+                    biometricEnabled: enableBiometric
+                }
+            });
+            this.showMessage('加密设置已保存', 'success');
+        } catch (error) {
+            this.showMessage('保存失败: ' + error.message, 'error');
+        }
+    }    async saveLocalStorageSettings() {
+        const allowLocalStorage = document.getElementById('allowLocalStorage')?.checked;
+
+        try {
+            await chrome.storage.local.set({
+                localStorageConfig: {
+                    useEncryptedStorage: allowLocalStorage || false
+                }
+            });
+            this.showMessage('本地存储设置已保存', 'success');
+        } catch (error) {
+            this.showMessage('保存失败: ' + error.message, 'error');
+        }
+    }    // 主题设置功能
+    async saveThemeSettings() {
+        const theme = document.getElementById('themeSelect')?.value;
+        const saveButton = document.getElementById('saveTheme');
+        
+        try {
+            // 使用全局主题管理器
+            if (window.themeManager) {
+                await window.themeManager.saveTheme(theme || 'auto');
+                this.showMessage('主题设置已保存', 'success');
+                this.showSuccessAnimation(saveButton);
+            } else {
+                // 回退到原来的方法
+                await chrome.storage.local.set({
+                    themeConfig: {
+                        theme: theme || 'auto'
+                    }
+                });
+                this.showMessage('主题设置已保存', 'success');
+                this.showSuccessAnimation(saveButton);
+                this.applyTheme();
+            }
+        } catch (error) {
+            this.showMessage('保存失败: ' + error.message, 'error');
+            this.showErrorAnimation(saveButton);
+        }
+    }
+
+    applyTheme() {
+        if (window.themeManager) {
+            // 使用全局主题管理器
+            const themeSelect = document.getElementById('themeSelect');
+            const selectedTheme = themeSelect?.value || 'auto';
+            window.themeManager.saveTheme(selectedTheme);
+        } else {
+            // 回退到原来的方法
+            const themeSelect = document.getElementById('themeSelect');
+            const selectedTheme = themeSelect?.value || 'auto';
+            const body = document.body;
+            
+            // 移除所有主题类
+            body.classList.remove('dark-mode', 'light-mode');
+            
+            switch (selectedTheme) {
+                case 'dark':
+                    body.classList.add('dark-mode');
+                    break;
+                case 'light':
+                    body.classList.add('light-mode');
+                    break;
+                case 'auto':
+                default:
+                    // 跟随系统设置，不添加额外类，依赖CSS媒体查询
+                    break;
+            }
+            
+            // 保存当前主题到localStorage以便其他页面使用
+            try {
+                localStorage.setItem('theme-preference', selectedTheme);
+            } catch (error) {
+                console.warn('无法保存主题偏好到localStorage:', error);
+            }
+        }
+    }
+
+    async initTheme() {
+        try {
+            if (window.themeManager) {
+                // 使用全局主题管理器
+                const currentTheme = window.themeManager.getCurrentTheme();
+                const themeSelect = document.getElementById('themeSelect');
+                if (themeSelect) {
+                    themeSelect.value = currentTheme;
+                }
+            } else {
+                // 回退到原来的方法
+                const result = await chrome.storage.local.get(['themeConfig']);
+                const savedTheme = result.themeConfig?.theme || 'auto';
+                
+                // 设置选择框的值
+                const themeSelect = document.getElementById('themeSelect');
+                if (themeSelect) {
+                    themeSelect.value = savedTheme;
+                }
+                
+                // 应用主题
+                this.applyTheme();
+            }
+        } catch (error) {
+            console.warn('无法加载主题设置:', error);
+            // 尝试从localStorage获取
+            try {
+                const localTheme = localStorage.getItem('theme-preference') || 'auto';
+                const themeSelect = document.getElementById('themeSelect');
+                if (themeSelect) {
+                    themeSelect.value = localTheme;
+                }
+                this.applyTheme();
+            } catch (localError) {
+                console.warn('无法从localStorage加载主题设置:', localError);
+            }        }
     }
 
     // 初始化动画
@@ -230,6 +530,53 @@ class SettingManager {
                     </div>
                 </div>
             </div>
+        `;    }
+
+    // 渲染设备验证器设置区域
+    renderDeviceAuthSection() {
+        return `
+            <section class="settings-section">
+                <h2>设备验证器设置</h2>
+                <div class="info-box">
+                    <p><strong>说明：</strong>启用设备验证器可以使用生物识别（指纹、面部识别等）或PIN码来保护您的2FA代码。</p>
+                </div>
+                <div class="form-group">
+                    <div class="switch-group">
+                        <label for="enableDeviceAuth">启用设备验证器</label>
+                        <label class="switch">
+                            <input type="checkbox" id="enableDeviceAuth">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <small>启用后，查看2FA代码时需要通过设备验证</small>
+                </div>
+                
+                <div id="deviceAuthDetails">
+                    <div class="form-group">
+                        <label for="deviceAuthTimeout">验证超时时间（分钟）</label>
+                        <select id="deviceAuthTimeout">
+                            <option value="5">5分钟</option>
+                            <option value="15">15分钟</option>
+                            <option value="30">30分钟</option>
+                            <option value="60">1小时</option>
+                        </select>
+                        <small>验证成功后的有效时间，超时后需要重新验证</small>
+                    </div>
+                    
+                    <div class="status-group">
+                        <div class="status-item">
+                            <label>设备验证器状态：</label>
+                            <span id="deviceAuthStatus" class="status-text">检查中...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button id="testDeviceAuth" class="btn btn-secondary">测试设备验证</button>
+                        <button id="resetCredentials" class="btn btn-warning">重置凭据</button>
+                        <button id="saveDeviceAuth" class="btn btn-primary">保存设置</button>
+                    </div>
+                </div>
+            </section>
         `;
     }
 
@@ -251,330 +598,6 @@ class SettingManager {
             </section>
         `;
     }    initElements() {
-        // 获取所有DOM元素        
-        this.elements = {
-            backButton: document.getElementById('backButton'),
-            // 主题设置
-            themeSelect: document.getElementById('themeSelect'),
-            saveThemeButton: document.getElementById('saveTheme'),
-            // 设备验证器设置
-            enableDeviceAuth: document.getElementById('enableDeviceAuth'),
-            deviceAuthDetails: document.getElementById('deviceAuthDetails'),
-            deviceSupportStatus: document.getElementById('deviceSupportStatus'),
-            credentialStatus: document.getElementById('credentialStatus'),
-            testDeviceAuth: document.getElementById('testDeviceAuth'),
-            resetCredentials: document.getElementById('resetCredentials'),
-            authTimeout: document.getElementById('authTimeout'),
-            saveDeviceAuth: document.getElementById('saveDeviceAuth'),
-            // WebDAV设置
-            testWebdavButton: document.getElementById('testWebdav'),
-            saveWebdavButton: document.getElementById('saveWebdav'),
-            // 加密设置
-            saveEncryptionButton: document.getElementById('saveEncryption'),
-            // 本地存储设置
-            saveLocalStorageButton: document.getElementById('saveLocalStorage'),
-            // 配置管理
-            addConfigButton: document.getElementById('addConfig'),
-            exportConfigsButton: document.getElementById('exportConfigs'),
-            importConfigsButton: document.getElementById('importConfigs'),
-            backupToCloudButton: document.getElementById('backupToCloud'),
-            restoreFromCloudButton: document.getElementById('restoreFromCloud'),
-            validateConfigsButton: document.getElementById('validateConfigs'),
-            // 添加配置模态框
-            addConfigModal: document.getElementById('addConfigModal'),
-            closeModal: document.querySelector('.close'),
-            saveConfigButton: document.getElementById('saveConfig'),
-            cancelConfigButton: document.getElementById('cancelConfig')
-        };
-    }
-
-    initEventListeners() {
-        // 返回按钮
-        this.elements.backButton?.addEventListener('click', () => {
-            window.close();
-        });
-
-        // 主题设置
-        this.elements.saveThemeButton?.addEventListener('click', () => this.saveThemeSettings());
-        this.elements.themeSelect?.addEventListener('change', () => this.applyTheme());
-
-        // 设备验证器设置
-        this.elements.enableDeviceAuth?.addEventListener('change', (e) => this.toggleDeviceAuth(e.target.checked));
-        this.elements.testDeviceAuth?.addEventListener('click', () => this.testDeviceAuth());
-        this.elements.resetCredentials?.addEventListener('click', () => this.resetDeviceCredentials());
-        this.elements.saveDeviceAuth?.addEventListener('click', () => this.saveDeviceAuthSettings());
-
-        // 测试WebDAV连接
-        this.elements.testWebdavButton?.addEventListener('click', () => this.testWebDAVConnection());
-        
-        // 保存WebDAV设置
-        this.elements.saveWebdavButton?.addEventListener('click', () => this.saveWebDAVSettings());
-        
-        // 保存加密设置
-        this.elements.saveEncryptionButton?.addEventListener('click', () => this.saveEncryptionSettings());
-        
-        // 保存本地存储设置
-        this.elements.saveLocalStorageButton?.addEventListener('click', () => this.saveLocalStorageSettings());
-        
-        // 添加配置
-        this.elements.addConfigButton?.addEventListener('click', () => this.showAddConfigModal());
-        
-        // 导出配置
-        this.elements.exportConfigsButton?.addEventListener('click', () => this.exportConfigs());
-          // 导入配置
-        this.elements.importConfigsButton?.addEventListener('click', () => this.importConfigs());
-        
-        // 备份到云端
-        this.elements.backupToCloudButton?.addEventListener('click', () => this.backupToCloud());
-        
-        // 从云端恢复
-        this.elements.restoreFromCloudButton?.addEventListener('click', () => this.restoreFromCloud());
-        
-        // 验证配置
-        this.elements.validateConfigsButton?.addEventListener('click', () => this.validateConfigs());
-        
-        // 模态框事件
-        this.elements.closeModal?.addEventListener('click', () => this.hideAddConfigModal());
-        this.elements.cancelConfigButton?.addEventListener('click', () => this.hideAddConfigModal());
-        this.elements.saveConfigButton?.addEventListener('click', () => this.saveNewConfig());
-    }
-
-    async testWebDAVConnection() {
-        const url = document.getElementById('webdavUrl')?.value;
-        const username = document.getElementById('webdavUsername')?.value;
-        const password = document.getElementById('webdavPassword')?.value;
-
-        if (!url || !username || !password) {
-            this.showMessage('请填写完整的WebDAV信息', 'error');
-            return;
-        }
-
-        try {
-            this.showMessage('正在测试连接...', 'info');
-            this.webdavClient.setCredentials(url, username, password);
-            const result = await this.webdavClient.testConnection();
-            
-            if (result.success) {
-                this.showMessage('WebDAV连接测试成功！', 'success');
-            } else {
-                this.showMessage('连接测试失败: ' + result.error, 'error');
-            }
-        } catch (error) {
-            this.showMessage('连接测试失败: ' + error.message, 'error');
-        }
-    }
-
-    async saveWebDAVSettings() {
-        const config = {
-            url: document.getElementById('webdavUrl')?.value,
-            username: document.getElementById('webdavUsername')?.value,
-            password: document.getElementById('webdavPassword')?.value
-        };
-
-        try {
-            await chrome.storage.local.set({ webdavConfig: config });
-            this.showMessage('WebDAV设置已保存', 'success');
-        } catch (error) {
-            this.showMessage('保存失败: ' + error.message, 'error');
-        }
-    }
-
-    async saveEncryptionSettings() {
-        const encryptionKey = document.getElementById('encryptionKey')?.value;
-        const enableBiometric = document.getElementById('enableBiometric')?.checked;
-
-        try {
-            await chrome.storage.local.set({
-                encryptionConfig: {
-                    customKey: encryptionKey,
-                    biometricEnabled: enableBiometric
-                }
-            });
-            this.showMessage('加密设置已保存', 'success');
-        } catch (error) {
-            this.showMessage('保存失败: ' + error.message, 'error');
-        }
-    }    async saveLocalStorageSettings() {
-        const allowLocalStorage = document.getElementById('allowLocalStorage')?.checked;
-
-        try {
-            await chrome.storage.local.set({
-                localStorageConfig: {
-                    useEncryptedStorage: allowLocalStorage || false
-                }
-            });
-            this.showMessage('本地存储设置已保存', 'success');
-        } catch (error) {
-            this.showMessage('保存失败: ' + error.message, 'error');
-        }
-    }    // 主题设置功能
-    async saveThemeSettings() {
-        const theme = document.getElementById('themeSelect')?.value;
-        const saveButton = document.getElementById('saveTheme');
-        
-        try {
-            // 使用全局主题管理器
-            if (window.themeManager) {
-                await window.themeManager.saveTheme(theme || 'auto');
-                this.showMessage('主题设置已保存', 'success');
-                this.showSuccessAnimation(saveButton);
-            } else {
-                // 回退到原来的方法
-                await chrome.storage.local.set({
-                    themeConfig: {
-                        theme: theme || 'auto'
-                    }
-                });
-                this.showMessage('主题设置已保存', 'success');
-                this.showSuccessAnimation(saveButton);
-                this.applyTheme();
-            }
-        } catch (error) {
-            this.showMessage('保存失败: ' + error.message, 'error');
-            this.showErrorAnimation(saveButton);
-        }
-    }
-
-    applyTheme() {
-        if (window.themeManager) {
-            // 使用全局主题管理器
-            const themeSelect = document.getElementById('themeSelect');
-            const selectedTheme = themeSelect?.value || 'auto';
-            window.themeManager.saveTheme(selectedTheme);
-        } else {
-            // 回退到原来的方法
-            const themeSelect = document.getElementById('themeSelect');
-            const selectedTheme = themeSelect?.value || 'auto';
-            const body = document.body;
-            
-            // 移除所有主题类
-            body.classList.remove('dark-mode', 'light-mode');
-            
-            switch (selectedTheme) {
-                case 'dark':
-                    body.classList.add('dark-mode');
-                    break;
-                case 'light':
-                    body.classList.add('light-mode');
-                    break;
-                case 'auto':
-                default:
-                    // 跟随系统设置，不添加额外类，依赖CSS媒体查询
-                    break;
-            }
-            
-            // 保存当前主题到localStorage以便其他页面使用
-            try {
-                localStorage.setItem('theme-preference', selectedTheme);
-            } catch (error) {
-                console.warn('无法保存主题偏好到localStorage:', error);
-            }
-        }
-    }
-
-    async initTheme() {
-        try {
-            if (window.themeManager) {
-                // 使用全局主题管理器
-                const currentTheme = window.themeManager.getCurrentTheme();
-                const themeSelect = document.getElementById('themeSelect');
-                if (themeSelect) {
-                    themeSelect.value = currentTheme;
-                }
-            } else {
-                // 回退到原来的方法
-                const result = await chrome.storage.local.get(['themeConfig']);
-                const savedTheme = result.themeConfig?.theme || 'auto';
-                
-                // 设置选择框的值
-                const themeSelect = document.getElementById('themeSelect');
-                if (themeSelect) {
-                    themeSelect.value = savedTheme;
-                }
-                
-                // 应用主题
-                this.applyTheme();
-            }
-        } catch (error) {
-            console.warn('无法加载主题设置:', error);
-            // 尝试从localStorage获取
-            try {
-                const localTheme = localStorage.getItem('theme-preference') || 'auto';
-                const themeSelect = document.getElementById('themeSelect');
-                if (themeSelect) {
-                    themeSelect.value = localTheme;
-                }
-                this.applyTheme();
-            } catch (localError) {
-                console.warn('无法从localStorage加载主题设置:', localError);
-            }
-        }
-    }
-
-    // 渲染设备验证器设置区域
-    renderDeviceAuthSection() {
-        return `            <section class="settings-section">
-                <h2>设备验证器设置</h2>
-                <div class="info-box">
-                    <p><strong>设备验证器</strong>允许您使用生物识别验证（如Windows Hello、指纹或面部识别）来保护您的2FA验证码。</p>
-                    <p><strong>注意：</strong>关闭此开关只会暂停功能，不会删除已注册的凭据。重新启用时将继续使用现有凭据。</p>
-                </div>
-                
-                <div class="device-auth-settings">
-                    <div class="form-group">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="enableDeviceAuth">
-                            <span class="slider"></span>
-                            <span class="label-text">启用设备验证器</span>
-                        </label>
-                        <small>使用Windows Hello等生物识别验证访问验证码（关闭开关不会删除凭据）</small>
-                    </div>
-                    
-                    <div id="deviceAuthDetails" class="device-auth-details" style="display: none;">
-                        <div class="auth-status-card">
-                            <h4>设备支持状态</h4>
-                            <div id="deviceSupportStatus" class="status-info">
-                                <div class="loading">检查设备支持情况...</div>
-                            </div>
-                        </div>
-                        
-                        <div class="auth-credentials-card">
-                            <h4>认证凭据管理</h4>
-                            <div id="credentialStatus" class="status-info">
-                                <div class="loading">检查凭据状态...</div>
-                            </div>                            <div class="credential-actions">
-                                <button id="testDeviceAuth" class="btn btn-secondary">测试验证</button>
-                                <button id="resetCredentials" class="btn btn-warning" title="完全删除已注册的生物识别信息，需要重新注册">重置凭据</button>
-                            </div>
-                            <div class="credential-note">
-                                <small><strong>提示：</strong>重置凭据将完全删除生物识别信息，仅在遇到问题时使用。简单开关功能不会删除凭据。</small>
-                            </div>
-                        </div>
-                        
-                        <div class="auth-settings-card">
-                            <h4>验证设置</h4>
-                            <div class="form-group">
-                                <label for="authTimeout">认证有效期（分钟）</label>
-                                <select id="authTimeout">
-                                    <option value="5">5分钟</option>
-                                    <option value="15" selected>15分钟</option>
-                                    <option value="30">30分钟</option>
-                                    <option value="60">1小时</option>
-                                </select>
-                                <small>认证成功后的有效时间，过期需要重新验证</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="button-group">
-                    <button id="saveDeviceAuth" class="btn btn-primary">保存设备验证器设置</button>
-                </div>
-            </section>
-        `;
-    }
-
-    initElements() {
         // 获取所有DOM元素        
         this.elements = {
             backButton: document.getElementById('backButton'),
@@ -606,7 +629,9 @@ class SettingManager {
             resetCredentialsButton: document.getElementById('resetCredentials'),
             authTimeout: document.getElementById('authTimeout'),
             deviceSupportStatus: document.getElementById('deviceSupportStatus'),
-            credentialStatus: document.getElementById('credentialStatus')
+            credentialStatus: document.getElementById('credentialStatus'),
+            deviceAuthDetails: document.getElementById('deviceAuthDetails'),
+            saveDeviceAuth: document.getElementById('saveDeviceAuth')
         };
     }
 
@@ -658,13 +683,7 @@ class SettingManager {
         // 模态框事件
         this.elements.closeModal?.addEventListener('click', () => this.hideAddConfigModal());
         this.elements.cancelConfigButton?.addEventListener('click', () => this.hideAddConfigModal());
-        this.elements.saveConfigButton?.addEventListener('click', () => this.saveNewConfig());
-
-        // 设备验证器设置
-        this.elements.enableDeviceAuth?.addEventListener('change', () => this.toggleDeviceAuthSettings());
-        this.elements.testDeviceAuthButton?.addEventListener('click', () => this.testDeviceAuth());
-        this.elements.resetCredentialsButton?.addEventListener('click', () => this.resetCredentials());
-        this.elements.authTimeout?.addEventListener('change', () => this.saveDeviceAuthSettings());
+        this.elements.saveConfigButton?.addEventListener('click', () => this.saveNewConfig());        // 设备验证器设置已经在前面添加过事件监听器，此处不需要再添加
     }
 
     async testWebDAVConnection() {
@@ -837,242 +856,163 @@ class SettingManager {
                 console.warn('无法从localStorage加载主题设置:', localError);
             }
         }
-    }
-
-    // 设备验证器相关方法
+    }    // 设备验证器相关方法
     
-    // 加载设备验证器设置
+    // 加载设备验证器设置 - 仅初始化UI，具体加载逻辑已移到DeviceAuthenticator类
     async loadDeviceAuthSettings() {
         try {
-            // 从设备验证器获取当前状态
-            const status = this.deviceAuthenticator.getStatus();
+            // 标记页面类型，方便设备验证器识别
+            document.body.id = document.body.id || 'authenticator-settings';
             
-            // 更新UI
-            if (this.elements.enableDeviceAuth) {
-                this.elements.enableDeviceAuth.checked = status.enabled;
-            }
-            
-            // 显示或隐藏详细设置
-            this.toggleDeviceAuthDetails(status.enabled);
-            
-            // 更新设备支持状态
-            await this.updateDeviceSupportStatus();
-            
-            // 更新凭据状态
-            this.updateCredentialStatus();
-            
-            // 加载认证超时设置
-            const authTimeout = localStorage.getItem('device_auth_timeout') || '15';
-            if (this.elements.authTimeout) {
-                this.elements.authTimeout.value = authTimeout;
-            }
-            
+            // 设备验证器将会自动初始化UI
+            console.log('设备验证器设置由DeviceAuthenticator类处理');
         } catch (error) {
             console.error('加载设备验证器设置失败:', error);
             this.showMessage('加载设备验证器设置失败', 'error');
         }
     }
-    
-    // 切换设备验证器启用状态
-    async toggleDeviceAuth(enabled) {
-        try {
-            if (enabled) {
-                // 检查设备支持
-                const supported = await this.deviceAuthenticator.checkSupport();
-                if (!supported) {
-                    this.showMessage('设备不支持生物识别验证', 'error');
-                    this.elements.enableDeviceAuth.checked = false;
-                    return;
-                }
+
+    /**
+     * 显示消息提示
+     * @param {string} message - 消息内容
+     * @param {string} type - 消息类型（success, error, info, warning）
+     * @param {number} duration - 消息显示持续时间（毫秒）
+     */
+    showMessage(message, type = 'info', duration = 3000) {
+        // 创建或获取消息容器
+        let messageContainer = document.getElementById('message-container');
+        if (!messageContainer) {
+            messageContainer = document.createElement('div');
+            messageContainer.id = 'message-container';
+            messageContainer.style.position = 'fixed';
+            messageContainer.style.top = '20px';
+            messageContainer.style.right = '20px';
+            messageContainer.style.zIndex = '9999';
+            document.body.appendChild(messageContainer);
+        }
+        
+        // 创建新消息元素
+        const messageElement = document.createElement('div');
+        messageElement.className = `message ${type}`;
+        messageElement.style.padding = '10px 15px';
+        messageElement.style.margin = '5px 0';
+        messageElement.style.borderRadius = '5px';
+        messageElement.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+        messageElement.style.transition = 'all 0.3s ease';
+        messageElement.style.opacity = '0';
+        messageElement.style.transform = 'translateY(-20px)';
+        
+        // 根据类型设置颜色
+        switch (type) {
+            case 'success':
+                messageElement.style.backgroundColor = '#4CAF50';
+                messageElement.style.color = 'white';
+                break;
+            case 'error':
+                messageElement.style.backgroundColor = '#F44336';
+                messageElement.style.color = 'white';
+                break;
+            case 'warning':
+                messageElement.style.backgroundColor = '#FF9800';
+                messageElement.style.color = 'white';
+                break;
+            case 'info':
+            default:
+                messageElement.style.backgroundColor = '#2196F3';
+                messageElement.style.color = 'white';
+                break;
+        }
+        
+        // 设置消息内容
+        messageElement.textContent = message;
+        
+        // 添加到容器
+        messageContainer.appendChild(messageElement);
+        
+        // 显示消息（使用setTimeout以确保DOM更新后应用动画）
+        setTimeout(() => {
+            messageElement.style.opacity = '1';
+            messageElement.style.transform = 'translateY(0)';
+        }, 10);
+        
+        // 设置消息自动消失
+        setTimeout(() => {
+            messageElement.style.opacity = '0';
+            messageElement.style.transform = 'translateY(-20px)';
+            
+            // 等待动画结束后移除元素
+            setTimeout(() => {
+                messageContainer.removeChild(messageElement);
                 
-                await this.deviceAuthenticator.enable();
-                this.showMessage('设备验证器已启用', 'success');
-            } else {
-                await this.deviceAuthenticator.disable();
-                this.showMessage('设备验证器已禁用', 'success');
-            }
-            
-            // 更新详细设置显示
-            this.toggleDeviceAuthDetails(enabled);
-            
-            // 更新状态显示
-            await this.updateDeviceSupportStatus();
-            this.updateCredentialStatus();
-            
-        } catch (error) {
-            console.error('切换设备验证器状态失败:', error);
-            this.showMessage('操作失败: ' + error.message, 'error');
-            // 恢复复选框状态
-            this.elements.enableDeviceAuth.checked = !enabled;
-        }
-    }
-    
-    // 显示或隐藏设备验证器详细设置
-    toggleDeviceAuthDetails(show) {
-        if (this.elements.deviceAuthDetails) {
-            this.elements.deviceAuthDetails.style.display = show ? 'block' : 'none';
-        }
-    }
-    
-    // 更新设备支持状态显示
-    async updateDeviceSupportStatus() {
-        if (!this.elements.deviceSupportStatus) return;
-        
-        try {
-            const authInfo = await this.deviceAuthenticator.getAuthenticatorInfo();
-            
-            let statusHtml = '';
-            if (authInfo.supported) {
-                statusHtml = `
-                    <div class="status-item status-success">
-                        <span class="status-icon">✓</span>
-                        <span>浏览器支持WebAuthn</span>
-                    </div>
-                    <div class="status-item ${authInfo.platformSupport ? 'status-success' : 'status-error'}">
-                        <span class="status-icon">${authInfo.platformSupport ? '✓' : '✗'}</span>
-                        <span>平台认证器${authInfo.platformSupport ? '可用' : '不可用'}</span>
-                    </div>
-                    <div class="status-item ${authInfo.conditionalSupport ? 'status-success' : 'status-warning'}">
-                        <span class="status-icon">${authInfo.conditionalSupport ? '✓' : '!'}</span>
-                        <span>条件式中介${authInfo.conditionalSupport ? '支持' : '不支持'}</span>
-                    </div>
-                `;
-            } else {
-                statusHtml = `
-                    <div class="status-item status-error">
-                        <span class="status-icon">✗</span>
-                        <span>设备不支持生物识别验证</span>
-                    </div>
-                    <div class="status-note">
-                        <p><strong>原因：</strong>${authInfo.reason || '未知错误'}</p>
-                    </div>
-                `;
-            }
-            
-            this.elements.deviceSupportStatus.innerHTML = statusHtml;
-            
-        } catch (error) {
-            console.error('更新设备支持状态失败:', error);
-            this.elements.deviceSupportStatus.innerHTML = `
-                <div class="status-item status-error">
-                    <span class="status-icon">✗</span>
-                    <span>检查设备支持时出错</span>
-                </div>
-            `;
-        }
-    }
-    
-    // 更新凭据状态显示
-    updateCredentialStatus() {
-        if (!this.elements.credentialStatus) return;
-        
-        const status = this.deviceAuthenticator.getStatus();
-        
-        let statusHtml = '';
-        if (status.hasCredential) {
-            statusHtml = `
-                <div class="status-item status-success">
-                    <span class="status-icon">✓</span>
-                    <span>设备凭据已注册</span>
-                </div>
-                <div class="status-item ${status.isValid ? 'status-success' : 'status-warning'}">
-                    <span class="status-icon">${status.isValid ? '✓' : '!'}</span>
-                    <span>认证状态：${status.isValid ? '有效' : '已过期'}</span>
-                </div>
-            `;
-            
-            if (status.lastAuthTime) {
-                const lastAuth = new Date(parseInt(status.lastAuthTime));
-                statusHtml += `
-                    <div class="status-item status-info">
-                        <span class="status-icon">ℹ</span>
-                        <span>最后验证：${lastAuth.toLocaleString()}</span>
-                    </div>
-                `;
-            }        } else {
-            statusHtml = `
-                <div class="status-item status-info">
-                    <span class="status-icon">ℹ</span>
-                    <span>尚未注册设备凭据</span>
-                </div>
-                <div class="status-note">
-                    <p>首次使用设备验证器时将自动注册设备凭据</p>
-                    <p><strong>注意：</strong>关闭设备验证器开关不会删除已注册的凭据，只是暂停功能</p>
-                </div>
-            `;
-        }
-        
-        this.elements.credentialStatus.innerHTML = statusHtml;
-    }
-    
-    // 测试设备验证
-    async testDeviceAuth() {
-        try {
-            this.showMessage('正在进行设备验证测试...', 'info');
-            
-            const result = await this.deviceAuthenticator.authenticate();
-            
-            if (result.success) {
-                this.showMessage('设备验证测试成功！', 'success');
-                // 更新凭据状态显示
-                this.updateCredentialStatus();
-            } else {
-                this.showMessage('设备验证测试失败: ' + result.error, 'error');
-            }
-            
-        } catch (error) {
-            console.error('设备验证测试失败:', error);
-            this.showMessage('设备验证测试过程中出现错误: ' + error.message, 'error');
-        }
-    }
-      // 重置设备凭据
-    async resetDeviceCredentials() {
-        try {
-            const confirmed = confirm(
-                '确定要重置设备凭据吗？\n\n' +
-                '这将清除所有已注册的生物识别信息，下次使用时需要重新注册。\n\n' +
-                '注意：如果您只是想临时关闭设备验证器，请使用上方的开关按钮，' +
-                '这样不会清除凭据，重新启用时可以直接使用。'
-            );
-            if (!confirmed) return;
-            
-            this.deviceAuthenticator.resetCredentials();
-            this.showMessage('设备凭据已重置，下次启用设备验证器时将重新注册', 'success');
-            
-            // 更新凭据状态显示
-            this.updateCredentialStatus();
-            
-        } catch (error) {
-            console.error('重置设备凭据失败:', error);
-            this.showMessage('重置设备凭据失败: ' + error.message, 'error');
-        }
-    }
-    
-    // 保存设备验证器设置
-    async saveDeviceAuthSettings() {
-        try {
-            // 保存认证超时设置
-            const authTimeout = this.elements.authTimeout?.value || '15';
-            localStorage.setItem('device_auth_timeout', authTimeout);
-            
-            // 保存其他设置（设备验证器的启用状态已经在切换时保存了）
-            const config = {
-                enabled: this.deviceAuthenticator.isEnabled,
-                authTimeout: parseInt(authTimeout),
-                lastSaved: Date.now()
-            };
-            
-            await chrome.storage.local.set({ deviceAuthConfig: config });
-            
-            this.showMessage('设备验证器设置已保存', 'success');
-            
-        } catch (error) {
-            console.error('保存设备验证器设置失败:', error);
-            this.showMessage('保存设备验证器设置失败: ' + error.message, 'error');
-        }
+                // 如果没有更多消息，移除容器
+                if (messageContainer.children.length === 0) {
+                    document.body.removeChild(messageContainer);
+                }
+            }, 300);
+        }, duration);
     }
 
-    // ...existing code...
+    // 设备验证器相关方法
+    
+    async saveDeviceAuthSettings() {
+        try {
+            // 直接使用设备验证器实例保存设置
+            await this.deviceAuthenticator.saveDeviceAuthSettings();
+            
+            // 为确保设置被正确保存，额外进行备份保存
+            const enabledValue = this.elements.enableDeviceAuth?.checked || false;
+            const timeoutValue = parseInt(this.elements.deviceAuthTimeout?.value || '15');
+            
+            // 直接同步到chrome.storage (额外备份)
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // 直接设置单独的键值，使状态更易于检测
+                await chrome.storage.local.set({
+                    'device_auth_enabled': enabledValue
+                });
+                
+                console.log('设置页面: 设备验证器状态已直接保存到chrome.storage:', enabledValue ? '启用' : '禁用');
+                
+                // 发送消息通知所有页面更新设备验证器状态
+                if (chrome.runtime && chrome.runtime.sendMessage) {
+                    try {
+                        chrome.runtime.sendMessage({
+                            action: 'deviceAuthSettingsChanged',
+                            enabled: enabledValue,
+                            timeout: timeoutValue
+                        });
+                        console.log('已发送设备验证器状态更新消息');
+                    } catch (e) {
+                        console.warn('发送消息失败:', e);
+                    }
+                }
+            }
+            
+            this.showMessage('设备验证器设置已保存', 'success');
+        } catch (error) {
+            console.error('保存设备验证器设置失败:', error);
+            this.showMessage('保存设置失败: ' + error.message, 'error');
+        }
+    }
+    
+    async testDeviceAuth() {
+        try {
+            // 使用设备验证器实例测试验证
+            await this.deviceAuthenticator.testDeviceAuth();
+        } catch (error) {
+            console.error('测试设备验证失败:', error);
+            this.showMessage('测试失败: ' + error.message, 'error');
+        }
+    }
+    
+    async resetDeviceCredentials() {
+        try {
+            // 使用设备验证器实例重置凭据
+            await this.deviceAuthenticator.resetDeviceCredentials();
+        } catch (error) {
+            console.error('重置设备凭据失败:', error);
+            this.showMessage('重置失败: ' + error.message, 'error');
+        }
+    }
 }
 
 // 全局变量导出（用于Service Worker环境）

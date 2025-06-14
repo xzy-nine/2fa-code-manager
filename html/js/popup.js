@@ -98,8 +98,23 @@ class PopupManager {
         this.syncAuthenticationStates();
         // 检查WebAuthn支持情况
         this.updateAuthButtonStates();
+        // 重新加载设备验证器设置以确保获取最新状态
+        await this.reloadDeviceAuthSettings();
         // 根据设备验证器状态控制界面显示
         this.updateUIBasedOnDeviceAuth();
+        
+        // 监听来自其他页面的消息
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+            chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+                if (message.action === 'deviceAuthSettingsChanged') {
+                    console.log('收到设备验证器设置变更消息:', message);
+                    // 重新加载设备验证器设置
+                    this.reloadDeviceAuthSettings();
+                    sendResponse({ received: true });
+                }
+                return true; // 保持消息通道开启以便异步回复
+            });
+        }
     }
 
     // 初始化事件监听器
@@ -297,7 +312,15 @@ class PopupManager {
                 };
             }
 
-            this.showMessage('首次使用，正在注册设备密钥...', 'info');
+            // 检查是否已有凭据，避免显示错误的"首次使用"提示
+            const hasCredential = this.deviceAuthenticator.credentialId !== null;
+            
+            if (!hasCredential) {
+                this.showMessage('首次使用，正在注册设备密钥...', 'info');
+            } else {
+                this.showMessage('正在进行设备验证...', 'info');
+            }
+            
             const result = await this.deviceAuthenticator.authenticate();
             
             if (result.success) {
@@ -1073,11 +1096,31 @@ class PopupManager {
         }
         
         try {
+            // 首先检查设备验证器的认证是否有效
+            if (this.deviceAuthenticator && this.deviceAuthenticator.isAuthenticationValid()) {
+                // 如果设备验证有效，不需要重新验证
+                console.log('设备验证仍然有效，无需重新验证');
+                this.authenticated = true;
+                this.localAuthenticated = true;
+                
+                // 更新UI
+                this.updateAuthStatus();
+                this.showFillSection();
+                this.showAllTabs();
+                return true;
+            }
+            
+            // 设备验证已过期，检查会话认证状态
             const authDataStr = sessionStorage.getItem('popup_auth_state');
             if (authDataStr) {
                 const authData = JSON.parse(authDataStr);
                 const now = Date.now();
-                const maxAge = 5 * 60 * 1000; // 5分钟有效期
+                
+                // 从localStorage获取用户设置的超时时间（分钟），默认15分钟
+                const timeoutMinutes = parseInt(localStorage.getItem('device_auth_timeout') || '15');
+                const maxAge = timeoutMinutes * 60 * 1000; // 使用用户设置的超时时间
+                
+                console.log(`使用超时时间: ${timeoutMinutes}分钟`);
                 
                 if (now - authData.timestamp < maxAge) {
                     this.authenticated = authData.authenticated || false;
@@ -1091,6 +1134,8 @@ class PopupManager {
                     }
                     
                     return true;
+                } else {
+                    console.log('认证已过期，需要重新验证');
                 }
             }
         } catch (error) {
@@ -1248,20 +1293,104 @@ class PopupManager {
     // 获取设备认证器信息
     async getAuthenticatorInfo() {
         return await this.deviceAuthenticator.getAuthenticatorInfo();
-    }
-
-    // 检查设备验证器状态
+    }    // 检查设备验证器状态
     async checkDeviceAuthStatus() {
         try {
-            const status = this.deviceAuthenticator.getStatus();
-            this.deviceAuthEnabled = status.enabled;
-            console.log('设备验证器状态:', status);
+            // 标记页面类型，方便设备验证器识别
+            document.body.id = document.body.id || 'authenticator-popup';
+            
+            // 1. 首先从chrome.storage直接获取最新的设置
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                try {
+                    // 尝试获取直接键值
+                    const result = await chrome.storage.local.get(['device_auth_enabled', 'deviceAuthConfig']);
+                    
+                    if (result.device_auth_enabled !== undefined) {
+                        this.deviceAuthEnabled = result.device_auth_enabled === true || 
+                                                result.device_auth_enabled === 'true';
+                        console.log('从chrome.storage直接键值获取设备验证器状态:', this.deviceAuthEnabled ? '启用' : '禁用');
+                    } else if (result.deviceAuthConfig && result.deviceAuthConfig.enabled !== undefined) {
+                        this.deviceAuthEnabled = result.deviceAuthConfig.enabled;
+                        console.log('从chrome.storage配置对象获取设备验证器状态:', this.deviceAuthEnabled ? '启用' : '禁用');
+                    }
+                } catch (e) {
+                    console.warn('从chrome.storage获取设备验证器状态失败:', e);
+                }
+            }
+            
+            // 2. 如果chrome.storage没有结果，再从deviceAuthenticator获取
+            if (this.deviceAuthEnabled === undefined) {
+                const status = this.deviceAuthenticator.getStatus();
+                this.deviceAuthEnabled = status.enabled;
+                console.log('从deviceAuthenticator获取设备验证器状态:', status);
+            }
+            
+            // 确保验证器实例也更新到最新状态
+            if (this.deviceAuthenticator.isEnabled !== this.deviceAuthEnabled) {
+                this.deviceAuthenticator.isEnabled = this.deviceAuthEnabled;
+                console.log('更新设备验证器实例状态:', this.deviceAuthEnabled ? '启用' : '禁用');
+            }
+            
+            // 监听设备验证成功事件
+            document.addEventListener('deviceAuthSuccess', (e) => {
+                this.authenticated = true;
+                this.updateUIBasedOnDeviceAuth();
+            });
+            
+            // 监听设备验证状态变化事件
+            document.addEventListener('deviceAuthStateChanged', (e) => {
+                const isValid = e.detail.authenticated;
+                this.authenticated = isValid;
+                this.updateUIBasedOnDeviceAuth();
+            });
         } catch (error) {
             console.error('检查设备验证器状态失败:', error);
             this.deviceAuthEnabled = false;
         }
     }
 
+    // 重新加载设备验证器设置
+    async reloadDeviceAuthSettings() {
+        try {
+            console.log('重新加载设备验证器设置...');
+            
+            // 首先尝试从chrome.storage直接获取最新的设置
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                const result = await chrome.storage.local.get(['device_auth_enabled', 'deviceAuthConfig']);
+                
+                if (result.device_auth_enabled !== undefined) {
+                    this.deviceAuthEnabled = result.device_auth_enabled === true || 
+                                            result.device_auth_enabled === 'true';
+                    // 确保验证器实例也更新
+                    this.deviceAuthenticator.isEnabled = this.deviceAuthEnabled;
+                    console.log('已重新加载设备验证器状态:', this.deviceAuthEnabled ? '启用' : '禁用');
+                    
+                    // 更新UI
+                    this.updateUIBasedOnDeviceAuth();
+                    return;
+                } else if (result.deviceAuthConfig && result.deviceAuthConfig.enabled !== undefined) {
+                    this.deviceAuthEnabled = result.deviceAuthConfig.enabled;
+                    // 确保验证器实例也更新
+                    this.deviceAuthenticator.isEnabled = this.deviceAuthEnabled;
+                    console.log('已重新加载设备验证器状态(从配置对象):', this.deviceAuthEnabled ? '启用' : '禁用');
+                    
+                    // 更新UI
+                    this.updateUIBasedOnDeviceAuth();
+                    return;
+                }
+            }
+            
+            // 如果chrome.storage没有结果，使用设备验证器重新加载设置
+            await this.deviceAuthenticator.loadSettings();
+            this.deviceAuthEnabled = this.deviceAuthenticator.isEnabled;
+            console.log('已通过设备验证器实例重新加载状态:', this.deviceAuthEnabled ? '启用' : '禁用');
+            
+            // 更新UI
+            this.updateUIBasedOnDeviceAuth();
+        } catch (error) {
+            console.error('重新加载设备验证器设置失败:', error);
+        }
+    }
     // 根据设备验证器状态更新UI
     updateUIBasedOnDeviceAuth() {
         const tabButtons = document.querySelectorAll('.popup-tab-btn');

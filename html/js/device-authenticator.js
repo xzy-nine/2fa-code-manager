@@ -1,157 +1,745 @@
 // 设备验证器管理器
 // 处理WebAuthn生物识别验证相关功能
 
-class DeviceAuthenticator {
-    constructor() {
-        this.isEnabled = false;
-        this.credentialId = null;
-        this.lastAuthTime = null;
-        this.init();
-    }
+var DeviceAuthenticator = function() {
+    this.isEnabled = false;
+    this.credentialId = null;
+    this.lastAuthTime = null;
+    this.authTimeout = 15; // 默认15分钟超时
+    
+    // UI相关属性
+    this.elements = {};
+    this.uiInitialized = false;
+    
+    this.init();
+};
 
-    // 初始化
-    async init() {
-        await this.loadSettings();
-        this.checkSupport();
-    }
+// 初始化
+DeviceAuthenticator.prototype.init = function() {
+    var self = this;
+    
+    this.loadSettings().then(function() {
+        self.checkSupport().then(function() {
+            // 如果DOM已加载，则立即初始化UI
+            if (document.readyState !== 'loading') {
+                self.initUI();
+            } else {
+                // 否则等待DOM加载完成后初始化UI
+                document.addEventListener('DOMContentLoaded', function() {
+                    self.initUI();
+                });
+            }
+            
+            // 执行一次认证状态检查
+            self.checkAuth();
+            
+            // 设置定期检查
+            setInterval(function() {
+                self.checkAuth();
+            }, 60000);
+        });
+    });
+    
+    // 监听设置变更事件
+    document.addEventListener('deviceAuthConfigChanged', function() {
+        console.log('设备验证器配置已更改，重新加载设置');
+        self.loadSettings();
+    });
+};
 
-    // 加载设置
-    async loadSettings() {
+// 进行认证状态检查
+DeviceAuthenticator.prototype.checkAuth = function() {
+    var isValid = this.isAuthenticationValid();
+    console.log('认证状态检查:', isValid ? '有效' : '无效');
+    
+    // 如果UI已初始化，更新UI
+    if (this.uiInitialized) {
+        this.updatePopupAuthUI();
+    }
+    
+    // 触发事件
+    var event = new CustomEvent('deviceAuthStateChanged', {
+        detail: { authenticated: isValid }
+    });
+    document.dispatchEvent(event);
+    
+    return isValid;
+};
+
+// 初始化UI
+DeviceAuthenticator.prototype.initUI = function() {
+    try {
+        // 如果UI已初始化或没有相关DOM元素则退出
+        if (this.uiInitialized) return;
+        
+        // 检测当前页面类型
+        var isPopup = document.getElementById('authenticator-popup');
+        var isSettings = document.getElementById('authenticator-settings');
+        
+        if (isPopup) {
+            this.initPopupUI();
+        } else if (isSettings) {
+            this.initSettingsUI();
+        } else {
+            // 非UI页面，跳过初始化
+            return;
+        }
+        
+        this.uiInitialized = true;
+        console.log('设备认证UI初始化完成');
+    } catch (error) {
+        console.error('初始化设备认证UI失败:', error);
+    }
+};
+
+// 初始化设置页面UI
+DeviceAuthenticator.prototype.initSettingsUI = function() {
+    // 获取设置页面中的设备验证器相关元素
+    this.elements = {
+        enableDeviceAuth: document.getElementById('enableDeviceAuth'),
+        deviceAuthTimeout: document.getElementById('deviceAuthTimeout'),
+        testDeviceAuth: document.getElementById('testDeviceAuth'),
+        resetCredentials: document.getElementById('resetCredentials'),
+        deviceAuthStatus: document.getElementById('deviceAuthStatus'),
+        saveDeviceAuth: document.getElementById('saveDeviceAuth')
+    };
+    
+    // 设置初始值
+    if (this.elements.enableDeviceAuth) {
+        this.elements.enableDeviceAuth.checked = this.isEnabled;
+    }
+    
+    // 获取超时设置
+    var timeoutMinutes = localStorage.getItem('device_auth_timeout') || '15';
+    if (this.elements.deviceAuthTimeout) {
+        this.elements.deviceAuthTimeout.value = timeoutMinutes;
+    }
+    
+    // 更新状态显示
+    this.updateStatusDisplay();
+    
+    // 显示设置详情区域
+    var deviceAuthDetails = document.getElementById('deviceAuthDetails');
+    if (deviceAuthDetails) {
+        deviceAuthDetails.style.display = 'block';
+    }
+    
+    // 添加事件监听器
+    this.attachSettingsEventListeners();
+};
+
+// 初始化弹出页UI
+DeviceAuthenticator.prototype.initPopupUI = function() {
+    var self = this;
+    
+    try {
+        // 获取弹出页中的设备验证器相关元素
+        this.elements = {
+            deviceAuthSection: document.getElementById('deviceAuthSection'),
+            deviceAuthButton: document.getElementById('deviceAuthButton'),
+            deviceAuthStatus: document.getElementById('deviceAuthStatus'),
+            authContainer: document.getElementById('authContainer')
+        };
+        
+        // 检查认证状态
+        var isValid = this.isAuthenticationValid();
+        console.log('初始化弹出页时的认证状态:', isValid ? '有效' : '无效');
+        
+        // 更新UI状态
+        this.updatePopupAuthUI();
+        
+        // 如果认证有效，触发认证成功事件
+        if (isValid) {
+            var authEvent = new CustomEvent('deviceAuthSuccess', {
+                detail: { authenticated: true }
+            });
+            document.dispatchEvent(authEvent);
+            console.log('触发设备认证成功事件');
+        }
+        
+        // 添加事件监听器
+        this.attachPopupEventListeners();
+        
+        // 设置定期检查
+        setInterval(function() {
+            try {
+                var isValid = self.isAuthenticationValid();
+                self.updatePopupAuthUI();
+                console.log('定期检查 - 认证状态:', isValid ? '有效' : '无效');
+            } catch (error) {
+                console.error('定期检查认证状态出错:', error);
+            }
+        }, 15000);
+    } catch (error) {
+        console.error('初始化弹出页UI失败:', error);
+    }
+};
+
+// 为设置页面添加事件监听器
+DeviceAuthenticator.prototype.attachSettingsEventListeners = function() {
+    var self = this;
+    var elements = this.elements;
+    
+    if (elements.enableDeviceAuth) {
+        elements.enableDeviceAuth.addEventListener('change', function(e) {
+            self.toggleDeviceAuth(e.target.checked);
+        });
+    }
+    
+    if (elements.testDeviceAuth) {
+        elements.testDeviceAuth.addEventListener('click', function() {
+            self.testDeviceAuth();
+        });
+    }
+    
+    if (elements.resetCredentials) {
+        elements.resetCredentials.addEventListener('click', function() {
+            self.resetDeviceCredentials();
+        });
+    }
+    
+    if (elements.saveDeviceAuth) {
+        elements.saveDeviceAuth.addEventListener('click', function() {
+            self.saveDeviceAuthSettings();
+        });
+    }
+};
+
+// 为弹出页添加事件监听器
+DeviceAuthenticator.prototype.attachPopupEventListeners = function() {
+    var self = this;
+    
+    if (this.elements.deviceAuthButton) {
+        this.elements.deviceAuthButton.addEventListener('click', function() {
+            self.handleAuthButtonClick();
+        });
+    }
+};
+
+// 处理弹出页认证按钮点击
+DeviceAuthenticator.prototype.handleAuthButtonClick = function() {
+    var self = this;
+    
+    this.authenticate().then(function(result) {
+        if (result.success) {
+            self.showMessage('验证成功', 'success');
+            self.updatePopupAuthUI();
+            
+            // 触发认证成功事件，让其他组件响应
+            var authEvent = new CustomEvent('deviceAuthSuccess', {
+                detail: { authenticated: true }
+            });
+            document.dispatchEvent(authEvent);
+        } else {
+            self.showMessage('验证失败: ' + result.error, 'error');
+        }
+    }).catch(function(error) {
+        console.error('验证过程出错:', error);
+        self.showMessage('验证出错: ' + error.message, 'error');
+    });
+};
+
+// 加载设置
+DeviceAuthenticator.prototype.loadSettings = function() {
+    var self = this;
+    
+    return new Promise(function(resolve, reject) {
         try {
-            this.isEnabled = localStorage.getItem('device_auth_enabled') === 'true';
-            this.credentialId = localStorage.getItem('webauthn_credential_id');
-            this.lastAuthTime = localStorage.getItem('last_webauthn_auth');
+            // 首先尝试从本地存储加载基本设置
+            var enabled = localStorage.getItem('device_auth_enabled');
+            if (enabled !== null) {
+                self.isEnabled = (enabled === 'true');
+            }
+            
+            var timeoutStr = localStorage.getItem('device_auth_timeout');
+            if (timeoutStr) {
+                self.authTimeout = parseInt(timeoutStr || '15');
+            }
+            
+            self.credentialId = localStorage.getItem('webauthn_credential_id');
+            self.lastAuthTime = localStorage.getItem('last_webauthn_auth');
+            
+            // 如果chrome.storage可用，尝试从中获取更新的设置
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                chrome.storage.local.get(['device_auth_enabled', 'device_auth_timeout', 'last_webauthn_auth'], function(result) {
+                    // 检查设备验证器是否启用
+                    if (result.device_auth_enabled !== undefined) {
+                        self.isEnabled = result.device_auth_enabled === true || result.device_auth_enabled === 'true';
+                        localStorage.setItem('device_auth_enabled', self.isEnabled.toString());
+                    }
+                    
+                    // 检查超时设置
+                    if (result.device_auth_timeout !== undefined) {
+                        self.authTimeout = parseInt(result.device_auth_timeout);
+                        localStorage.setItem('device_auth_timeout', self.authTimeout.toString());
+                    }
+                    
+                    // 检查最后认证时间
+                    if (result.last_webauthn_auth) {
+                        self.lastAuthTime = result.last_webauthn_auth;
+                        localStorage.setItem('last_webauthn_auth', self.lastAuthTime);
+                    }
+                    
+                    console.log('设备验证器设置加载完成:', {
+                        isEnabled: self.isEnabled,
+                        authTimeout: self.authTimeout,
+                        hasCredential: !!self.credentialId,
+                        lastAuthTime: self.lastAuthTime ? new Date(parseInt(self.lastAuthTime)).toLocaleString() : null
+                    });
+                    
+                    resolve();
+                });
+            } else {
+                console.log('设备验证器设置加载完成 (无chrome.storage):', {
+                    isEnabled: self.isEnabled,
+                    authTimeout: self.authTimeout,
+                    hasCredential: !!self.credentialId,
+                    lastAuthTime: self.lastAuthTime ? new Date(parseInt(self.lastAuthTime)).toLocaleString() : null
+                });
+                
+                resolve();
+            }
         } catch (error) {
             console.error('加载设备验证器设置失败:', error);
+            reject(error);
         }
-    }
+    });
+};
 
-    // 保存设置
-    async saveSettings() {
-        try {
-            localStorage.setItem('device_auth_enabled', this.isEnabled.toString());
-        } catch (error) {
-            console.error('保存设备验证器设置失败:', error);
+// 保存设置
+DeviceAuthenticator.prototype.saveSettings = function() {
+    try {
+        localStorage.setItem('device_auth_enabled', this.isEnabled.toString());
+        if (this.authTimeout) {
+            localStorage.setItem('device_auth_timeout', this.authTimeout.toString());
         }
-    }    // 启用设备验证器
-    async enable() {
-        this.isEnabled = true;
-        await this.saveSettings();
-        console.log('设备验证器已启用');
-        // 注意：如果之前已有注册的凭据，将继续使用现有凭据
-        // 这样可以避免用户频繁开关功能时需要重新注册的问题
-    }    // 禁用设备验证器
-    async disable() {
-        this.isEnabled = false;
-        await this.saveSettings();
-        // 注意：禁用时不清除凭据，只是暂时停用功能
-        // 用户可以稍后重新启用而无需重新注册
-        // 如需完全重置，请使用 resetCredentials() 方法
-        console.log('设备验证器已禁用（保留凭据）');
+        
+        // 如果chrome.storage可用，同时保存到chrome.storage
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.set({
+                'device_auth_enabled': this.isEnabled,
+                'device_auth_timeout': this.authTimeout
+            });
+        }
+    } catch (error) {
+        console.error('保存设备验证器设置失败:', error);
     }
+};
 
-    // 检查设备支持情况
-    async checkSupport() {
+// 保存设备验证器设置
+DeviceAuthenticator.prototype.saveDeviceAuthSettings = function() {
+    try {
+        // 获取DOM元素中的值
+        var enabledValue = this.elements.enableDeviceAuth ? this.elements.enableDeviceAuth.checked : false;
+        var timeoutValue = parseInt(this.elements.deviceAuthTimeout ? this.elements.deviceAuthTimeout.value : '15');
+        
+        // 保存到本地存储
+        localStorage.setItem('device_auth_enabled', enabledValue.toString());
+        localStorage.setItem('device_auth_timeout', timeoutValue.toString());
+        
+        // 更新内部状态
+        this.isEnabled = enabledValue;
+        this.authTimeout = timeoutValue;
+        
+        // 保存到chrome.storage
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.set({
+                'device_auth_enabled': enabledValue,
+                'device_auth_timeout': timeoutValue
+            });
+        }
+        
+        // 触发事件通知其他组件
+        var event = new CustomEvent('deviceAuthConfigChanged', {
+            detail: { enabled: enabledValue, timeout: timeoutValue }
+        });
+        document.dispatchEvent(event);
+        
+        this.showMessage('设备验证器设置已保存', 'success');
+        this.updateStatusDisplay();
+    } catch (error) {
+        console.error('保存设备验证器设置失败:', error);
+        this.showMessage('保存设置失败: ' + error.message, 'error');
+    }
+};
+
+// 测试设备验证功能
+DeviceAuthenticator.prototype.testDeviceAuth = function() {
+    var self = this;
+    
+    this.authenticate().then(function(result) {
+        if (result.success) {
+            self.showMessage('设备验证成功！', 'success');
+            self.updateStatusDisplay();
+        } else {
+            self.showMessage('设备验证失败: ' + result.error, 'error');
+        }
+    }).catch(function(error) {
+        console.error('测试设备验证时出错:', error);
+        self.showMessage('测试失败: ' + error.message, 'error');
+    });
+};
+
+// 重置设备凭据
+DeviceAuthenticator.prototype.resetDeviceCredentials = function() {
+    // 显示确认对话框
+    if (!confirm('确定要重置设备验证凭据吗？这将需要您重新注册设备。')) {
+        return;
+    }
+    
+    this.credentialId = null;
+    this.lastAuthTime = null;
+    localStorage.removeItem('webauthn_credential_id');
+    localStorage.removeItem('webauthn_registration_time');
+    localStorage.removeItem('last_webauthn_auth');
+    
+    // 如果chrome.storage可用，也清除其中的认证时间
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.remove(['last_webauthn_auth']);
+    }
+    
+    console.log('WebAuthn凭据已重置 - 下次使用时需重新注册');
+    this.showMessage('设备验证器凭据已重置，下次使用时需重新注册', 'info');
+    this.updateStatusDisplay();
+};
+
+// 切换设备验证器状态
+DeviceAuthenticator.prototype.toggleDeviceAuth = function(enabled) {
+    this.isEnabled = enabled;
+    this.saveSettings();
+    this.updateStatusDisplay();
+    
+    console.log('设备验证器状态已切换为:', enabled ? '启用' : '禁用');
+};
+
+// 更新设置页面状态显示
+DeviceAuthenticator.prototype.updateStatusDisplay = function() {
+    var self = this;
+    
+    if (!this.elements.deviceAuthStatus) return;
+    
+    // 获取设备支持和注册状态
+    this.getAuthenticatorInfo().then(function(info) {
+        var statusHTML = '';
+        
+        if (!info.supported) {
+            statusHTML = '<span class="status-error">❌ 设备不支持生物识别验证</span>';
+        } else if (!info.platformSupport) {
+            statusHTML = '<span class="status-warning">⚠️ 设备不支持平台认证器</span>';
+        } else if (!info.hasCredential) {
+            statusHTML = '<span class="status-info">ℹ️ 未注册设备凭据，首次验证时将自动注册</span>';
+        } else if (info.enabled && info.lastAuthTime) {
+            var lastAuthDate = new Date(parseInt(info.lastAuthTime));
+            statusHTML = '<span class="status-success">✅ 已设置 - 最后验证时间: ' + lastAuthDate.toLocaleString() + '</span>';
+        } else if (info.enabled) {
+            statusHTML = '<span class="status-warning">⚠️ 已启用但未进行首次验证</span>';
+        } else {
+            statusHTML = '<span class="status-info">ℹ️ 已禁用</span>';
+        }
+        
+        self.elements.deviceAuthStatus.innerHTML = statusHTML;
+    });
+};
+
+// 更新弹出页认证UI
+DeviceAuthenticator.prototype.updatePopupAuthUI = function() {
+    if (!this.elements.deviceAuthSection || !this.elements.deviceAuthButton) return;
+    
+    // 检查验证状态并更新UI
+    var isValid = this.isAuthenticationValid();
+    var hasCredential = !!this.credentialId;
+    
+    console.log('更新弹出页认证UI, 状态:', {
+        isEnabled: this.isEnabled,
+        isValid: isValid,
+        hasCredential: hasCredential
+    });
+    
+    if (!this.isEnabled) {
+        this.elements.deviceAuthSection.style.display = 'none';
+        return;
+    }
+    
+    this.elements.deviceAuthSection.style.display = 'block';
+    
+    // 根据验证状态设置按钮样式和文本
+    if (isValid) {
+        this.elements.deviceAuthButton.textContent = '已验证';
+        this.elements.deviceAuthButton.classList.remove('auth-button-needed');
+        this.elements.deviceAuthButton.classList.add('auth-button-success');
+        
+        // 显示剩余时间
+        this.updateRemainingTime();
+    } else {
+        this.elements.deviceAuthButton.textContent = hasCredential ? '需要验证' : '首次验证';
+        this.elements.deviceAuthButton.classList.add('auth-button-needed');
+        this.elements.deviceAuthButton.classList.remove('auth-button-success');
+    }
+    
+    // 通知其他组件认证状态
+    var event = new CustomEvent('deviceAuthStateChanged', {
+        detail: { authenticated: isValid }
+    });
+    document.dispatchEvent(event);
+};
+
+// 更新剩余有效时间
+DeviceAuthenticator.prototype.updateRemainingTime = function() {
+    var self = this;
+    
+    if (!this.elements.deviceAuthStatus || !this.lastAuthTime) return;
+    
+    try {
+        var lastAuth = parseInt(this.lastAuthTime);
+        var now = Date.now();
+        var timeoutMinutes = this.authTimeout || parseInt(localStorage.getItem('device_auth_timeout') || '15');
+        var maxAgeMs = timeoutMinutes * 60 * 1000;
+        var remainingMs = Math.max(0, lastAuth + maxAgeMs - now);
+        var remainingMinutes = Math.floor(remainingMs / 60000);
+        var remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+        
+        this.elements.deviceAuthStatus.innerHTML = 
+            '<span class="status-info">剩余有效期: ' + remainingMinutes + '分' + remainingSeconds + '秒</span>';
+        
+        // 如果还在有效期内，设置定时器更新显示
+        if (remainingMs > 0) {
+            setTimeout(function() { self.updateRemainingTime(); }, 1000);
+        } else {
+            this.updatePopupAuthUI();
+        }
+    } catch (error) {
+        console.error('更新剩余时间失败:', error);
+    }
+};
+
+// 显示消息
+DeviceAuthenticator.prototype.showMessage = function(message, type) {
+    if (!type) type = 'info';
+    
+    try {
+        // 尝试使用全局消息显示函数
+        if (typeof showToast === 'function') {
+            showToast(message, type);
+            return;
+        }
+        
+        // 备选方案：创建一个简单的通知元素
+        var toast = document.createElement('div');
+        toast.className = 'toast toast-' + type;
+        toast.textContent = message;
+        
+        document.body.appendChild(toast);
+        
+        // 显示并淡出
+        setTimeout(function() {
+            toast.classList.add('show');
+            
+            setTimeout(function() {
+                toast.classList.remove('show');
+                setTimeout(function() {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 3000);
+        }, 10);
+    } catch (error) {
+        console.error('显示消息失败:', error);
+        console.log(type.toUpperCase() + ': ' + message);
+    }
+};
+
+// 检查设备支持情况
+DeviceAuthenticator.prototype.checkSupport = function() {
+    return new Promise(function(resolve) {
         try {
             if (!window.PublicKeyCredential) {
                 console.warn('浏览器不支持WebAuthn');
-                return false;
+                resolve(false);
+                return;
             }
 
-            const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-            if (!available) {
-                console.warn('设备不支持平台认证器');
-                return false;
-            }
+            PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+                .then(function(available) {
+                    if (!available) {
+                        console.warn('设备不支持平台认证器');
+                        resolve(false);
+                        return;
+                    }
 
-            console.log('设备支持WebAuthn平台认证器');
-            return true;
+                    console.log('设备支持WebAuthn平台认证器');
+                    resolve(true);
+                })
+                .catch(function(error) {
+                    console.error('检查WebAuthn支持时出错:', error);
+                    resolve(false);
+                });
         } catch (error) {
             console.error('检查WebAuthn支持时出错:', error);
+            resolve(false);
+        }
+    });
+};
+
+// 检查认证是否仍然有效（可设置有效期）
+DeviceAuthenticator.prototype.isAuthenticationValid = function() {
+    if (!this.isEnabled) {
+        console.log('认证无效: 设备验证器未启用');
+        return false;
+    }
+    
+    if (!this.lastAuthTime) {
+        console.log('认证无效: lastAuthTime 为空');
+        return false;
+    }
+    
+    try {
+        var lastAuth = parseInt(this.lastAuthTime);
+        if (isNaN(lastAuth)) {
+            console.log('认证无效: lastAuthTime 不是有效数字');
             return false;
         }
-    }
-
-    // 执行设备验证
-    async authenticate() {
-        if (!this.isEnabled) {
-            return { success: false, error: '设备验证器未启用' };
+        
+        var now = Date.now();
+        
+        // 使用内部超时设置或从localStorage读取
+        var timeoutMinutes = this.authTimeout;
+        if (!timeoutMinutes) {
+            var timeoutMinutesStr = localStorage.getItem('device_auth_timeout');
+            timeoutMinutes = parseInt(timeoutMinutesStr || '15');
+            this.authTimeout = timeoutMinutes; // 更新实例变量
         }
+        
+        console.log('验证有效期检查 - 设置时间: ' + timeoutMinutes + '分钟, ' + 
+                   '最后验证时间: ' + new Date(lastAuth).toLocaleString());
+        
+        var maxAgeMs = timeoutMinutes * 60 * 1000;
+        var isValid = (now - lastAuth) < maxAgeMs;
+        
+        var remainingMinutes = Math.max(0, (lastAuth + maxAgeMs - now) / 60000);
+        console.log('验证' + (isValid ? '仍然有效' : '已过期') + ', 剩余时间: ' + 
+                   remainingMinutes.toFixed(1) + '分钟');
+        
+        return isValid;
+    } catch (error) {
+        console.error('验证有效期检查失败:', error);
+        return false;
+    }
+};
 
-        const supported = await this.checkSupport();
+// 执行设备验证
+DeviceAuthenticator.prototype.authenticate = function() {
+    var self = this;
+    
+    if (!this.isEnabled) {
+        return Promise.resolve({ success: false, error: '设备验证器未启用' });
+    }
+    
+    return this.checkSupport().then(function(supported) {
         if (!supported) {
             return { success: false, error: '设备不支持生物识别验证' };
         }
-
-        try {
-            // 生成挑战
-            const challenge = new Uint8Array(32);
-            crypto.getRandomValues(challenge);
-
-            // 尝试从存储中获取已注册的凭据ID
-            let credentialId = this.credentialId;
-            
-            if (!credentialId) {
-                // 首次使用，需要注册新凭据
-                const registrationResult = await this.registerCredential(challenge);
-                if (!registrationResult.success) {
-                    return registrationResult;
+        
+        return new Promise(function(resolve) {
+            try {
+                // 生成挑战
+                var challenge = new Uint8Array(32);
+                crypto.getRandomValues(challenge);
+                
+                // 尝试从存储中获取已注册的凭据ID
+                var credentialId = self.credentialId;
+                
+                // 处理凭据
+                var processCredentials = function(credId) {
+                    // 执行认证
+                    var credentialRequestOptions = {
+                        challenge: challenge,
+                        allowCredentials: [{
+                            id: self.base64ToArrayBuffer(credId),
+                            type: 'public-key',
+                            transports: ['internal']
+                        }],
+                        userVerification: 'required',  // 要求用户验证（生物识别或PIN）
+                        timeout: 60000
+                    };
+                    
+                    navigator.credentials.get({
+                        publicKey: credentialRequestOptions
+                    }).then(function(assertion) {
+                        if (assertion) {
+                            // 验证成功，记录认证时间
+                            var now = Date.now();
+                            self.lastAuthTime = now.toString();
+                            
+                            // 保存到localStorage
+                            localStorage.setItem('last_webauthn_auth', self.lastAuthTime);
+                            
+                            // 保存到chrome.storage (如果可用)
+                            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                                chrome.storage.local.set({ 'last_webauthn_auth': self.lastAuthTime });
+                            }
+                            
+                            console.log('验证成功! 认证时间:', new Date(now).toLocaleString());
+                            
+                            // 更新UI
+                            if (self.uiInitialized) {
+                                self.updatePopupAuthUI();
+                            }
+                            
+                            resolve({ success: true });
+                        } else {
+                            resolve({ success: false, error: '设备密钥验证失败' });
+                        }
+                    }).catch(function(error) {
+                        console.error('设备密钥认证错误:', error);
+                        
+                        var errorMessage = '认证失败';
+                        if (error.name === 'NotAllowedError') {
+                            errorMessage = '用户取消了认证或认证超时，请重试';
+                        } else if (error.name === 'InvalidStateError') {
+                            errorMessage = '设备密钥状态无效，正在重置...';
+                        } else if (error.name === 'NotSupportedError') {
+                            errorMessage = '设备不支持此认证方式';
+                        } else if (error.name === 'SecurityError') {
+                            errorMessage = '安全错误：请确保网站使用HTTPS协议';
+                        } else if (error.name === 'UnknownError') {
+                            errorMessage = '认证器遇到未知错误，请重试';
+                        } else {
+                            errorMessage = '认证失败: ' + error.message;
+                        }
+                        
+                        resolve({ success: false, error: errorMessage });
+                    });
+                };
+                
+                // 如果没有凭据，需要先注册
+                if (!credentialId) {
+                    self.registerCredential(challenge).then(function(registrationResult) {
+                        if (registrationResult.success) {
+                            self.credentialId = registrationResult.credentialId;
+                            processCredentials(registrationResult.credentialId);
+                        } else {
+                            resolve(registrationResult);
+                        }
+                    });
+                } else {
+                    processCredentials(credentialId);
                 }
-                credentialId = registrationResult.credentialId;
-                this.credentialId = credentialId;
+            } catch (error) {
+                console.error('设备验证流程出错:', error);
+                resolve({ success: false, error: '验证流程出错: ' + error.message });
             }
+        });
+    });
+};
 
-            // 执行认证
-            const credentialRequestOptions = {
-                challenge: challenge,
-                allowCredentials: [{
-                    id: this.base64ToArrayBuffer(credentialId),
-                    type: 'public-key',
-                    transports: ['internal']
-                }],
-                userVerification: 'required',  // 要求用户验证（生物识别或PIN）
-                timeout: 60000
-            };
-
-            const assertion = await navigator.credentials.get({
-                publicKey: credentialRequestOptions
-            });
-
-            if (assertion) {
-                // 验证成功，记录认证时间
-                this.lastAuthTime = Date.now().toString();
-                localStorage.setItem('last_webauthn_auth', this.lastAuthTime);
-                return { success: true };
-            } else {
-                return { success: false, error: '设备密钥验证失败' };
-            }
-
-        } catch (error) {
-            console.error('设备密钥认证错误:', error);
-            
-            // 处理特定错误
-            if (error.name === 'NotAllowedError') {
-                return { success: false, error: '用户取消了认证或认证超时，请重试' };
-            } else if (error.name === 'InvalidStateError') {
-                return { success: false, error: '设备密钥状态无效，正在重置...' };
-            } else if (error.name === 'NotSupportedError') {
-                return { success: false, error: '设备不支持此认证方式' };
-            } else if (error.name === 'SecurityError') {
-                return { success: false, error: '安全错误：请确保网站使用HTTPS协议' };
-            } else if (error.name === 'UnknownError') {
-                return { success: false, error: '认证器遇到未知错误，请重试' };
-            } else {
-                return { success: false, error: `认证失败: ${error.message}` };
-            }
-        }
-    }
-
-    // 注册WebAuthn凭据
-    async registerCredential(challenge) {
+// 注册WebAuthn凭据
+DeviceAuthenticator.prototype.registerCredential = function(challenge) {
+    var self = this;
+    
+    return new Promise(function(resolve) {
         try {
-            const userId = new TextEncoder().encode('2fa-manager-user');
+            var userId = new TextEncoder().encode('2fa-manager-user');
             
-            const credentialCreationOptions = {
+            var credentialCreationOptions = {
                 challenge: challenge,
                 rp: {
                     name: '2FA验证码管家',
@@ -170,130 +758,127 @@ class DeviceAuthenticator {
                 authenticatorSelection: {
                     authenticatorAttachment: 'platform',  // 仅平台认证器（Windows Hello等）
                     userVerification: 'required',         // 要求用户验证
-                    requireResidentKey: false,             // 不要求常驻密钥
-                    residentKey: 'discouraged'             // 不鼓励常驻密钥
+                    requireResidentKey: false,            // 不要求常驻密钥
+                    residentKey: 'discouraged'            // 不鼓励常驻密钥
                 },
                 timeout: 60000,
                 attestation: 'none'  // 不需要证明
             };
-
-            const credential = await navigator.credentials.create({
-                publicKey: credentialCreationOptions
-            });
-
-            if (credential) {
-                const credentialId = this.arrayBufferToBase64(credential.rawId);
-                this.credentialId = credentialId;
-                localStorage.setItem('webauthn_credential_id', credentialId);
-                localStorage.setItem('webauthn_registration_time', Date.now().toString());
-                
-                console.log('WebAuthn凭据注册成功');
-                return { 
-                    success: true, 
-                    credentialId: credentialId 
-                };
-            } else {
-                return { 
-                    success: false, 
-                    error: '无法创建设备密钥，请检查设备设置' 
-                };
-            }
-
-        } catch (error) {
-            console.error('注册WebAuthn凭据失败:', error);
             
-            if (error.name === 'NotAllowedError') {
-                return { success: false, error: '用户拒绝了设备密钥注册，请重试' };
-            } else if (error.name === 'NotSupportedError') {
-                return { success: false, error: '设备不支持密钥注册功能' };
-            } else if (error.name === 'SecurityError') {
-                return { success: false, error: '安全错误：请确保网站使用HTTPS协议' };
-            } else {
-                return { success: false, error: `注册失败: ${error.message}` };
-            }
+            navigator.credentials.create({
+                publicKey: credentialCreationOptions
+            }).then(function(credential) {
+                if (credential) {
+                    var credentialId = self.arrayBufferToBase64(credential.rawId);
+                    self.credentialId = credentialId;
+                    localStorage.setItem('webauthn_credential_id', credentialId);
+                    localStorage.setItem('webauthn_registration_time', Date.now().toString());
+                    
+                    console.log('WebAuthn凭据注册成功');
+                    resolve({ success: true, credentialId: credentialId });
+                } else {
+                    resolve({ success: false, error: '无法创建设备密钥，请检查设备设置' });
+                }
+            }).catch(function(error) {
+                console.error('注册WebAuthn凭据失败:', error);
+                
+                var errorMessage = '注册失败';
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = '用户拒绝了设备密钥注册，请重试';
+                } else if (error.name === 'NotSupportedError') {
+                    errorMessage = '设备不支持密钥注册功能';
+                } else if (error.name === 'SecurityError') {
+                    errorMessage = '安全错误：请确保网站使用HTTPS协议';
+                } else {
+                    errorMessage = '注册失败: ' + error.message;
+                }
+                
+                resolve({ success: false, error: errorMessage });
+            });
+        } catch (error) {
+            console.error('注册WebAuthn凭据出错:', error);
+            resolve({ success: false, error: '注册出错: ' + error.message });
         }
-    }    // 重置凭据 - 完全清除已注册的生物识别信息
-    resetCredentials() {
-        this.credentialId = null;
-        this.lastAuthTime = null;
-        localStorage.removeItem('webauthn_credential_id');
-        localStorage.removeItem('webauthn_registration_time');
-        localStorage.removeItem('last_webauthn_auth');
-        console.log('WebAuthn凭据已重置 - 下次使用时需重新注册');
-        // 注意：此方法会完全清除凭据，用户下次使用时需要重新注册
-        // 通常在用户手动重置或遇到认证问题时使用
-        // 简单的开关设备验证器功能不会调用此方法
-    }
+    });
+};
 
-    // 获取认证器信息
-    async getAuthenticatorInfo() {
+// 获取认证器信息
+DeviceAuthenticator.prototype.getAuthenticatorInfo = function() {
+    var self = this;
+    
+    return new Promise(function(resolve) {
         try {
             if (!window.PublicKeyCredential) {
-                return { supported: false, reason: '浏览器不支持WebAuthn' };
+                resolve({ supported: false, reason: '浏览器不支持WebAuthn' });
+                return;
             }
 
-            const platformSupport = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-            
-            // 检查条件式中介支持
-            let conditionalSupport = false;
-            if (PublicKeyCredential.isConditionalMediationAvailable) {
-                conditionalSupport = await PublicKeyCredential.isConditionalMediationAvailable();
-            }
-
-            return {
-                supported: true,
-                platformSupport: platformSupport,
-                conditionalSupport: conditionalSupport,
-                hasCredential: !!this.credentialId,
-                enabled: this.isEnabled,
-                lastAuthTime: this.lastAuthTime
-            };
-
+            PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+                .then(function(platformSupport) {
+                    // 检查条件式中介支持
+                    var checkConditionalSupport = function(callback) {
+                        if (PublicKeyCredential.isConditionalMediationAvailable) {
+                            PublicKeyCredential.isConditionalMediationAvailable().then(function(supported) {
+                                callback(supported);
+                            }).catch(function() {
+                                callback(false);
+                            });
+                        } else {
+                            callback(false);
+                        }
+                    };
+                    
+                    checkConditionalSupport(function(conditionalSupport) {
+                        resolve({
+                            supported: true,
+                            platformSupport: platformSupport,
+                            conditionalSupport: conditionalSupport,
+                            hasCredential: !!self.credentialId,
+                            enabled: self.isEnabled,
+                            lastAuthTime: self.lastAuthTime
+                        });
+                    });
+                })
+                .catch(function(error) {
+                    console.error('获取认证器信息失败:', error);
+                    resolve({ supported: false, reason: error.message });
+                });
         } catch (error) {
             console.error('获取认证器信息失败:', error);
-            return { supported: false, reason: error.message };
+            resolve({ supported: false, reason: error.message });
         }
-    }
+    });
+};
 
-    // 工具方法：ArrayBuffer转Base64
-    arrayBufferToBase64(buffer) {
-        const bytes = new Uint8Array(buffer);
-        let binary = '';
-        for (let i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        return btoa(binary);
+// 工具方法：ArrayBuffer转Base64
+DeviceAuthenticator.prototype.arrayBufferToBase64 = function(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var binary = '';
+    for (var i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
     }
+    return btoa(binary);
+};
 
-    // 工具方法：Base64转ArrayBuffer
-    base64ToArrayBuffer(base64) {
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i);
-        }
-        return bytes.buffer;
+// 工具方法：Base64转ArrayBuffer
+DeviceAuthenticator.prototype.base64ToArrayBuffer = function(base64) {
+    var binary = atob(base64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
     }
+    return bytes.buffer;
+};
 
-    // 检查认证是否仍然有效（可设置有效期）
-    isAuthenticationValid(maxAgeMs = 15 * 60 * 1000) { // 默认15分钟
-        if (!this.lastAuthTime) return false;
-        
-        const lastAuth = parseInt(this.lastAuthTime);
-        const now = Date.now();
-        return (now - lastAuth) < maxAgeMs;
-    }
-
-    // 获取状态摘要
-    getStatus() {
-        return {
-            enabled: this.isEnabled,
-            hasCredential: !!this.credentialId,
-            isValid: this.isAuthenticationValid(),
-            lastAuthTime: this.lastAuthTime
-        };
-    }
-}
+// 获取状态摘要
+DeviceAuthenticator.prototype.getStatus = function() {
+    return {
+        enabled: this.isEnabled,
+        hasCredential: !!this.credentialId,
+        isValid: this.isAuthenticationValid(),
+        lastAuthTime: this.lastAuthTime
+    };
+};
 
 // 将DeviceAuthenticator添加到全局作用域
 if (typeof GlobalScope !== 'undefined') {
@@ -303,7 +888,7 @@ if (typeof GlobalScope !== 'undefined') {
 }
 
 // 创建实例并添加到全局作用域
-const deviceAuthenticator = new DeviceAuthenticator();
+var deviceAuthenticator = new DeviceAuthenticator();
 if (typeof GlobalScope !== 'undefined') {
     GlobalScope.deviceAuthenticator = deviceAuthenticator;
 } else if (typeof window !== 'undefined') {
