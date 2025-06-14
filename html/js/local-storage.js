@@ -34,6 +34,18 @@ class LocalStorageManager {    constructor() {
         try {
             console.log('开始添加本地配置:', config);
             
+            // 检查是否已存在相同secret的配置
+            const existingConfigs = await this.getAllLocalConfigs();
+            const duplicateConfig = existingConfigs.find(existing => existing.secret === config.secret);
+            
+            if (duplicateConfig) {
+                console.log('检测到重复的secret:', config.secret?.substring(0, 8) + '...');
+                return { 
+                    success: false, 
+                    message: `已存在相同密钥的配置: ${duplicateConfig.name || '未命名'}` 
+                };
+            }
+            
             // 生成配置ID
             const configId = this.generateConfigId();
             const configWithId = {
