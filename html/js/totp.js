@@ -9,7 +9,9 @@ class TOTPAdapter {
             console.error('OTPAuth库未加载');
             throw new Error('OTPAuth库未加载');
         }
-    }    // 生成TOTP验证码
+    }
+
+    // 生成TOTP验证码
     async generateTOTP(secret, timeOffset = 0) {
         try {
             // 验证密钥
@@ -32,7 +34,8 @@ class TOTPAdapter {
             let token;
             if (timeOffset !== 0) {
                 const timestamp = Math.floor((Date.now() + timeOffset * 1000) / 1000);
-                token = totp.generate({ timestamp });            } else {
+                token = totp.generate({ timestamp });
+            } else {
                 token = totp.generate();
             }
 
@@ -179,16 +182,37 @@ class TOTPGenerator extends TOTPAdapter {
     }
 }
 
-// TOTP配置管理器
-class TOTPConfigManager {    constructor() {
+// TOTP统一配置管理器 - 支持弹出页面和设置页面
+class TOTPConfigManager {
+    constructor() {
         this.totpAdapter = new TOTPAdapter();
         this.localStorageManager = window.localStorageManager || (GlobalScope.LocalStorageManager ? new GlobalScope.LocalStorageManager() : null);
         this.configs = [];
         this.updateInterval = null; // 添加更新定时器
-    }    // 初始化设置页面接口 - 与其他模块保持一致
+        this.isPopupMode = false; // 标识是否为弹出页面模式
+    }
+
+    // 初始化弹出页面接口
+    async initPopup() {
+        try {
+            console.log('初始化TOTP弹出页面...');
+            this.isPopupMode = true;
+            // 停止旧的定时器
+            this.stopAutoUpdate();
+            await this.loadConfigs();
+            console.log('配置加载完成，配置数量:', this.configs.length);
+            await this.renderConfigList();
+            console.log('TOTP弹出页面初始化完成');
+        } catch (error) {
+            console.error('初始化TOTP弹出页面失败:', error);
+        }
+    }
+
+    // 初始化设置页面接口 - 与其他模块保持一致
     async initSettings() {
         try {
             console.log('初始化TOTP配置管理器...');
+            this.isPopupMode = false;
             // 停止旧的定时器
             this.stopAutoUpdate();
             await this.loadConfigs();
@@ -214,7 +238,9 @@ class TOTPConfigManager {    constructor() {
         if (modalsContainer) {
             modalsContainer.innerHTML += this.renderAddConfigModal();
         }
-    }    // 渲染配置管理区域
+    }
+
+    // 渲染配置管理区域
     renderConfigManagementSection() {
         return `
             <section class="settings-section">
@@ -236,7 +262,9 @@ class TOTPConfigManager {    constructor() {
                 </div>
             </section>
         `;
-    }    // 渲染添加配置模态框
+    }
+
+    // 渲染添加配置模态框
     renderAddConfigModal() {
         return `
             <div id="addConfigModal" class="modal">
@@ -307,8 +335,341 @@ class TOTPConfigManager {    constructor() {
                 </div>
             </div>
         `;
-    }    // 初始化事件监听器
+    }
+
+    // 渲染配置列表 - 支持弹出页面和设置页面两种模式
+    async renderConfigList() {
+        if (this.isPopupMode) {
+            await this.renderPopupConfigList();
+        } else {
+            await this.renderSettingsConfigList();
+        }
+        
+        // 启动自动更新
+        this.startAutoUpdate();
+    }
+
+    // 渲染弹出页面配置列表
+    async renderPopupConfigList() {
+        const configList = document.getElementById('localCodes');
+        if (!configList) return;
+        
+        console.log('渲染弹出页面配置列表，配置数量:', this.configs.length);
+
+        if (this.configs.length === 0) {
+            configList.innerHTML = `                
+                <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <p>暂无实时验证码</p>
+                    <p class="empty-tip">在设置中添加实时加载的验证码</p>
+                </div>
+            `;
+            return;
+        }
+
+        // 使用弹出页面的HTML结构（不包含编辑删除按钮）
+        let html = '';
+        for (const config of this.configs) {
+            try {
+                const currentCode = await this.totpAdapter.getCurrentCode(config.secret);
+                html += `
+                    <div class="code-item">
+                        <div class="code-header">
+                            <div class="code-name">${config.name || config.label || '未命名'}</div>
+                            <div class="code-timer">
+                                <div class="timer-circle">
+                                    <div class="timer-progress" style="--progress: ${((30 - currentCode.timeRemaining) / 30) * 100}%"></div>
+                                </div>
+                                <span>${currentCode.timeRemaining}</span>
+                            </div>
+                        </div>
+                        <div class="code-value" data-id="${config.id}" data-secret="${config.secret}">${currentCode.code}</div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error(`渲染配置项 ${config.name} 失败:`, error);
+                html += `
+                    <div class="code-item">
+                        <div class="code-header">
+                            <div class="code-name">${config.name || config.label || '未命名'}</div>
+                            <div class="code-timer">
+                                <div class="timer-circle">
+                                    <div class="timer-progress"></div>
+                                </div>
+                                <span>30</span>
+                            </div>
+                        </div>
+                        <div class="code-value">------</div>
+                    </div>
+                `;
+            }
+        }
+
+        configList.innerHTML = html;
+        this.bindPopupItemEvents();
+    }
+
+    // 渲染设置页面配置列表
+    async renderSettingsConfigList() {
+        const configList = document.getElementById('configList');
+        if (!configList) return;
+
+        console.log('渲染设置页面配置列表，配置数量:', this.configs.length);
+
+        if (this.configs.length === 0) {
+            configList.innerHTML = '<p class="no-configs">暂无配置，请添加TOTP配置</p>';
+            return;
+        }
+
+        let html = '<div class="config-items">';
+        for (const config of this.configs) {
+            try {
+                const currentCode = await this.totpAdapter.getCurrentCode(config.secret);
+                html += `
+                    <div class="config-item" data-id="${config.id}">
+                        <div class="config-info">
+                            <div class="config-name">${config.name || config.label || '未命名'}</div>
+                            <div class="config-details">
+                                ${config.issuer ? `<span class="issuer">${config.issuer}</span>` : ''}
+                                ${config.account ? `<span class="account">${config.account}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="config-code">
+                            <div class="code-header">
+                                <div class="code-timer">
+                                    <div class="timer-circle">
+                                        <div class="timer-progress" style="--progress: ${((30 - currentCode.timeRemaining) / 30) * 100}%"></div>
+                                    </div>
+                                    <span class="timer-text">${currentCode.timeRemaining}</span>
+                                </div>
+                            </div>
+                            <span class="code" data-id="${config.id}" data-secret="${config.secret}">${currentCode.code}</span>
+                        </div>
+                        <div class="config-actions">
+                            <button class="btn btn-small edit-config" data-id="${config.id}">编辑</button>
+                            <button class="btn btn-small btn-danger delete-config" data-id="${config.id}">删除</button>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error(`渲染配置项 ${config.name} 失败:`, error);
+                html += `
+                    <div class="config-item error" data-id="${config.id}">
+                        <div class="config-info">
+                            <div class="config-name">${config.name || config.label || '未命名'}</div>
+                            <div class="config-error">配置错误: ${error.message}</div>
+                        </div>
+                        <div class="config-actions">
+                            <button class="btn btn-small edit-config" data-id="${config.id}">编辑</button>
+                            <button class="btn btn-small btn-danger delete-config" data-id="${config.id}">删除</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        html += '</div>';
+
+        configList.innerHTML = html;
+        this.bindConfigItemEvents();
+    }
+
+    // 绑定弹出页面配置项事件
+    bindPopupItemEvents() {
+        // 添加复制功能 - 使用弹出页面样式的验证码
+        const codeElements = document.querySelectorAll('.code-value');
+        codeElements.forEach(element => {
+            element.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(element.textContent);
+                    this.showMessage('验证码已复制', 'success');
+                } catch (error) {
+                    console.error('复制失败:', error);
+                    this.showMessage('复制失败', 'error');
+                }
+            });
+        });
+    }
+
+    // 绑定设置页面配置项事件
+    bindConfigItemEvents() {
+        // 编辑配置
+        document.querySelectorAll('.edit-config').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const configId = e.target.dataset.id;
+                this.showEditConfigModal(configId);
+            });
+        });
+
+        // 删除配置
+        document.querySelectorAll('.delete-config').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                const configId = e.target.dataset.id;
+                const config = this.configs.find(c => c.id === configId);
+                const configName = config ? (config.name || config.label || '未命名') : '配置';
+                
+                if (confirm(`确定要删除配置"${configName}"吗？`)) {
+                    await this.deleteConfig(configId);
+                }
+            });
+        });
+    }
+
+    // 更新验证码显示 - 支持两种模式
+    async updateLocalCodesDisplay() {
+        if (this.isPopupMode) {
+            // 弹出页面模式：更新.code-value元素
+            const codeElements = document.querySelectorAll('.code-value[data-secret]');
+            
+            for (const element of codeElements) {
+                const secret = element.dataset.secret;
+                const configId = element.dataset.id;
+                
+                if (!secret) continue;
+                
+                try {
+                    const currentCode = await this.totpAdapter.getCurrentCode(secret);
+                    
+                    // 更新验证码
+                    element.textContent = currentCode.code;
+                    
+                    // 更新定时器显示
+                    const timerElement = element.closest('.code-item').querySelector('.code-timer span');
+                    if (timerElement) {
+                        timerElement.textContent = currentCode.timeRemaining;
+                    }
+                    
+                    // 更新进度条
+                    const progressElement = element.closest('.code-item').querySelector('.timer-progress');
+                    if (progressElement) {
+                        const progress = ((30 - currentCode.timeRemaining) / 30) * 100;
+                        progressElement.style.transform = `rotate(${progress * 3.6}deg)`;
+                    }
+                    
+                } catch (error) {
+                    console.error(`更新配置 ${configId} 的验证码失败:`, error);
+                    element.textContent = '------';
+                }
+            }
+        } else {
+            // 设置页面模式：更新.code元素
+            const codeElements = document.querySelectorAll('.config-code .code[data-secret]');
+            
+            for (const element of codeElements) {
+                const secret = element.dataset.secret;
+                const configId = element.dataset.id;
+                
+                if (!secret) continue;
+                
+                try {
+                    const currentCode = await this.totpAdapter.getCurrentCode(secret);
+                    
+                    // 更新验证码
+                    element.textContent = currentCode.code;
+                    
+                    // 更新定时器显示
+                    const timerElement = element.closest('.config-item').querySelector('.timer-text');
+                    if (timerElement) {
+                        timerElement.textContent = currentCode.timeRemaining;
+                    }
+                    
+                    // 更新进度条
+                    const progressElement = element.closest('.config-item').querySelector('.timer-progress');
+                    if (progressElement) {
+                        const progress = ((30 - currentCode.timeRemaining) / 30) * 100;
+                        progressElement.style.setProperty('--progress', `${progress}%`);
+                    }
+                    
+                    // 添加点击复制功能
+                    element.onclick = async () => {
+                        try {
+                            await navigator.clipboard.writeText(currentCode.code);
+                            this.showMessage('验证码已复制到剪贴板', 'success');
+                        } catch (error) {
+                            console.error('复制失败:', error);
+                            this.showMessage('复制失败', 'error');
+                        }
+                    };
+                    
+                } catch (error) {
+                    console.error(`更新配置 ${configId} 的验证码失败:`, error);
+                    element.textContent = '------';
+                }
+            }
+        }
+    }
+
+    // 启动自动更新
+    startAutoUpdate() {
+        // 清除现有的定时器
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+        }
+
+        // 启动新的定时器，每秒更新一次
+        this.updateInterval = setInterval(() => {
+            this.updateLocalCodesDisplay();
+        }, 1000);
+    }
+
+    // 停止自动更新
+    stopAutoUpdate() {
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
+    }
+
+    // 加载配置
+    async loadConfigs() {
+        try {
+            // 使用与弹出界面相同的数据源
+            if (this.localStorageManager) {
+                this.configs = await this.localStorageManager.getAllLocalConfigs();
+            } else {
+                // 如果没有localStorageManager，尝试从不同的存储键读取
+                // 首先尝试从localConfigs读取（与popup一致）
+                let result = await chrome.storage.local.get(['localConfigs']);
+                if (result.localConfigs && result.localConfigs.length > 0) {
+                    this.configs = result.localConfigs;
+                } else {
+                    // 然后尝试从旧的存储键读取
+                    result = await chrome.storage.local.get(['totpConfigs']);
+                    this.configs = result.totpConfigs || [];
+                }
+            }
+            console.log('加载配置成功，配置数量:', this.configs.length);
+        } catch (error) {
+            console.error('加载配置失败:', error);
+            this.configs = [];
+        }
+    }
+
+    // 保存配置
+    async saveConfigs() {
+        try {
+            // 使用与弹出界面相同的数据源
+            if (this.localStorageManager) {
+                // 使用localStorageManager的方法逐个保存配置
+                // 注意：这个方法主要用于回退，正常情况下应该使用addLocalConfig
+                console.warn('使用回退方法保存配置');
+            } else {
+                // 如果没有localStorageManager，直接保存到storage
+                // 使用与popup一致的存储键
+                await chrome.storage.local.set({ localConfigs: this.configs });
+            }
+            console.log('保存配置成功');
+        } catch (error) {
+            console.error('保存配置失败:', error);
+            throw error;
+        }
+    }
+
+    /******************************* 设置页面专用方法 *******************************/
+    
+    // 初始化事件监听器（仅设置页面）
     initEventListeners() {
+        if (this.isPopupMode) return; // 弹出页面不需要这些事件
+        
         // 添加配置
         document.getElementById('addConfig')?.addEventListener('click', () => this.showAddConfigModal());
         
@@ -464,7 +825,9 @@ class TOTPConfigManager {    constructor() {
             console.error('保存配置失败:', error);
             this.showMessage('保存配置失败: ' + error.message, 'error');
         }
-    }    // 保存编辑的配置
+    }
+
+    // 保存编辑的配置
     async saveEditConfig() {
         try {
             if (!this.currentEditingConfigId) return;
@@ -510,132 +873,8 @@ class TOTPConfigManager {    constructor() {
             this.showMessage('保存配置失败: ' + error.message, 'error');
         }
     }
-    // 加载配置
-    async loadConfigs() {
-        try {
-            // 使用与弹出界面相同的数据源
-            if (this.localStorageManager) {
-                this.configs = await this.localStorageManager.getAllLocalConfigs();
-            } else {
-                // 如果没有localStorageManager，尝试从不同的存储键读取
-                // 首先尝试从localConfigs读取（与popup一致）
-                let result = await chrome.storage.local.get(['localConfigs']);
-                if (result.localConfigs && result.localConfigs.length > 0) {
-                    this.configs = result.localConfigs;
-                } else {
-                    // 然后尝试从旧的存储键读取
-                    result = await chrome.storage.local.get(['totpConfigs']);
-                    this.configs = result.totpConfigs || [];
-                }
-            }
-            console.log('加载配置成功，配置数量:', this.configs.length);
-        } catch (error) {
-            console.error('加载配置失败:', error);
-            this.configs = [];
-        }
-    }// 保存配置
-    async saveConfigs() {
-        try {
-            // 使用与弹出界面相同的数据源
-            if (this.localStorageManager) {
-                // 使用localStorageManager的方法逐个保存配置
-                // 注意：这个方法主要用于回退，正常情况下应该使用addLocalConfig
-                console.warn('使用回退方法保存配置');
-            } else {
-                // 如果没有localStorageManager，直接保存到storage
-                // 使用与popup一致的存储键
-                await chrome.storage.local.set({ localConfigs: this.configs });
-            }
-            console.log('保存配置成功');
-        } catch (error) {
-            console.error('保存配置失败:', error);
-            throw error;
-        }
-    }    // 渲染配置列表
-    async renderConfigList() {
-        const configList = document.getElementById('configList');
-        if (!configList) return;
 
-        console.log('渲染配置列表，配置数量:', this.configs.length);
-
-        if (this.configs.length === 0) {
-            configList.innerHTML = '<p class="no-configs">暂无配置，请添加TOTP配置</p>';
-            return;
-        }        let html = '<div class="config-items">';
-        for (const config of this.configs) {            try {
-                const currentCode = await this.totpAdapter.getCurrentCode(config.secret);
-                html += `
-                    <div class="config-item" data-id="${config.id}">
-                        <div class="config-info">
-                            <div class="config-name">${config.name || config.label || '未命名'}</div>
-                            <div class="config-details">
-                                ${config.issuer ? `<span class="issuer">${config.issuer}</span>` : ''}
-                                ${config.account ? `<span class="account">${config.account}</span>` : ''}
-                            </div>
-                        </div>
-                        <div class="config-code">
-                            <div class="code-header">
-                                <div class="code-timer">
-                                    <div class="timer-circle">
-                                        <div class="timer-progress" style="--progress: ${((30 - currentCode.timeRemaining) / 30) * 100}%"></div>
-                                    </div>
-                                    <span class="timer-text">${currentCode.timeRemaining}</span>
-                                </div>
-                            </div>
-                            <span class="code" data-id="${config.id}" data-secret="${config.secret}">${currentCode.code}</span>
-                        </div>
-                        <div class="config-actions">
-                            <button class="btn btn-small edit-config" data-id="${config.id}">编辑</button>
-                            <button class="btn btn-small btn-danger delete-config" data-id="${config.id}">删除</button>
-                        </div>
-                    </div>
-                `;
-            } catch (error) {
-                console.error(`渲染配置项 ${config.name} 失败:`, error);
-                html += `
-                    <div class="config-item error" data-id="${config.id}">
-                        <div class="config-info">
-                            <div class="config-name">${config.name || config.label || '未命名'}</div>
-                            <div class="config-error">配置错误: ${error.message}</div>
-                        </div>
-                        <div class="config-actions">
-                            <button class="btn btn-small edit-config" data-id="${config.id}">编辑</button>
-                            <button class="btn btn-small btn-danger delete-config" data-id="${config.id}">删除</button>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-        html += '</div>';
-
-        configList.innerHTML = html;
-        this.bindConfigItemEvents();
-        
-        // 启动自动更新
-        this.startAutoUpdate();
-    }    // 绑定配置项事件
-    bindConfigItemEvents() {
-        // 编辑配置
-        document.querySelectorAll('.edit-config').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const configId = e.target.dataset.id;
-                this.showEditConfigModal(configId);
-            });
-        });
-
-        // 删除配置
-        document.querySelectorAll('.delete-config').forEach(button => {
-            button.addEventListener('click', async (e) => {
-                const configId = e.target.dataset.id;
-                const config = this.configs.find(c => c.id === configId);
-                const configName = config ? (config.name || config.label || '未命名') : '配置';
-                
-                if (confirm(`确定要删除配置"${configName}"吗？`)) {
-                    await this.deleteConfig(configId);
-                }
-            });
-        });
-    }// 删除配置
+    // 删除配置
     async deleteConfig(configId) {
         try {
             if (this.localStorageManager) {
@@ -802,79 +1041,14 @@ class TOTPConfigManager {    constructor() {
     showMessage(message, type = 'info', duration = 3000) {
         if (window.settingManager && window.settingManager.showMessage) {
             window.settingManager.showMessage(message, type, duration);
+        } else if (this.isPopupMode && window.GlobalScope && window.GlobalScope.popupManager && window.GlobalScope.popupManager.showMessage) {
+            // 弹出页面使用PopupManager的消息显示
+            window.GlobalScope.popupManager.showMessage(message, type, duration);
         } else {
             // 简单的消息显示方法
             console.log(`[${type.toUpperCase()}] ${message}`);
             if (type === 'error') {
                 alert(`错误: ${message}`);
-            }
-        }
-    }
-
-    // 启动自动更新
-    startAutoUpdate() {
-        // 清除现有的定时器
-        if (this.updateInterval) {
-            clearInterval(this.updateInterval);
-        }
-
-        // 启动新的定时器，每秒更新一次
-        this.updateInterval = setInterval(() => {
-            this.updateLocalCodesDisplay();
-        }, 1000);
-    }
-
-    // 停止自动更新
-    stopAutoUpdate() {
-        if (this.updateInterval) {
-            clearInterval(this.updateInterval);
-            this.updateInterval = null;
-        }
-    }
-
-    // 更新本地验证码显示（类似弹出界面的逻辑）
-    async updateLocalCodesDisplay() {
-        const codeElements = document.querySelectorAll('.config-code .code[data-secret]');
-        
-        for (const element of codeElements) {
-            const secret = element.dataset.secret;
-            const configId = element.dataset.id;
-            
-            if (!secret) continue;
-            
-            try {
-                const currentCode = await this.totpAdapter.getCurrentCode(secret);
-                
-                // 更新验证码
-                element.textContent = currentCode.code;
-                
-                // 更新定时器显示
-                const timerElement = element.closest('.config-item').querySelector('.timer-text');
-                if (timerElement) {
-                    timerElement.textContent = currentCode.timeRemaining;
-                }
-                
-                // 更新进度条
-                const progressElement = element.closest('.config-item').querySelector('.timer-progress');
-                if (progressElement) {
-                    const progress = ((30 - currentCode.timeRemaining) / 30) * 100;
-                    progressElement.style.setProperty('--progress', `${progress}%`);
-                }
-                
-                // 添加点击复制功能
-                element.onclick = async () => {
-                    try {
-                        await navigator.clipboard.writeText(currentCode.code);
-                        this.showMessage('验证码已复制到剪贴板', 'success');
-                    } catch (error) {
-                        console.error('复制失败:', error);
-                        this.showMessage('复制失败', 'error');
-                    }
-                };
-                
-            } catch (error) {
-                console.error(`更新配置 ${configId} 的验证码失败:`, error);
-                element.textContent = '------';
             }
         }
     }

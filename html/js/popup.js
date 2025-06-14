@@ -51,13 +51,15 @@ class PopupManager {
         this.localAuthenticated = false;
         this.deviceAuthEnabled = false; // 新增：设备验证器是否启用
         this.webdavClient = null;
-        this.qrScanner = null;
-        this.totpGenerator = new TOTP();
+        this.qrScanner = null;        this.totpGenerator = new TOTP();
         this.localStorageManager = new Storage();
         this.deviceAuthenticator = GlobalScope.deviceAuthenticator || new DeviceAuth();
         this.currentSiteInfo = null;
         this.localCodes = [];
         this.updateInterval = null;
+        
+        // 创建统一的TOTP配置管理器实例
+        this.totpConfigManager = new GlobalScope.TOTPConfigManager();
         
         // 等待模块加载完成后再初始化
         this.waitForModulesAndInit();
@@ -93,10 +95,9 @@ class PopupManager {
         // 首先尝试恢复认证状态
         this.restoreAuthenticationState();
         await this.loadSettings();
-        
-        // 修改：先加载本地验证码，然后再更新当前站点
+          // 修改：先加载本地验证码，然后再更新当前站点
         if (this.authenticated || this.localAuthenticated) {
-            await this.loadLocalCodes();
+            await this.initializeTOTPManager();
         }
         
         await this.updateCurrentSite();
@@ -230,21 +231,20 @@ class PopupManager {
         });
         document.getElementById(tabName)?.classList.add('active');
 
-        this.currentTab = tabName;
-
-        // 标签页特殊处理
+        this.currentTab = tabName;        // 标签页特殊处理
         if (tabName === 'local') {
             // 如果填充页已经认证，直接同步到本地页
             if (this.authenticated) {
                 this.localAuthenticated = true;
                 this.showLocalCodes();
-                this.loadLocalCodes();
+                this.initializeTOTPManager();
             } else {
                 // 显示认证界面
                 document.getElementById('localAuthSection').style.display = 'block';
                 document.getElementById('localCodes').style.display = 'none';
             }
-        }    }
+        }
+    }
     
     // 设备密钥认证
     async authenticateUser() {
@@ -276,14 +276,11 @@ class PopupManager {
     
     // 本地设备密钥认证
     async authenticateLocal() {
-        try {
-            // 如果填充页面已经认证，直接使用该状态
+        try {            // 如果填充页面已经认证，直接使用该状态
             if (this.authenticated) {
                 this.localAuthenticated = true;
                 this.showLocalCodes();
-                await this.loadLocalCodes();
-                // 添加诊断调用
-                await this.diagnoseLocalCodes();
+                await this.initializeTOTPManager();
                 this.showMessage('本地验证码已解锁！', 'success');
                 return;
             }
@@ -292,14 +289,11 @@ class PopupManager {
             
             const result = await this.performBiometricAuth();
               if (result.success) {
-                this.localAuthenticated = true;
-                // 同步填充页认证状态
+                this.localAuthenticated = true;                // 同步填充页认证状态
                 this.authenticated = true; 
                 this.updateAuthStatus();
                 this.showLocalCodes();
-                await this.loadLocalCodes();
-                // 添加诊断调用
-                await this.diagnoseLocalCodes();
+                await this.initializeTOTPManager();
                 // 保存认证状态
                 this.saveAuthenticationState();
                 // 显示所有标签页
@@ -360,11 +354,10 @@ class PopupManager {
     }
 
     // 更新本地认证状态显示
-    updateLocalAuthStatus() {
-        // 如果已经认证且当前在本地标签页，自动显示本地验证码
+    updateLocalAuthStatus() {        // 如果已经认证且当前在本地标签页，自动显示本地验证码
         if (this.authenticated && this.localAuthenticated && this.currentTab === 'local') {
             this.showLocalCodes();
-            this.loadLocalCodes();
+            this.initializeTOTPManager();
         }
     }
 
@@ -608,141 +601,23 @@ class PopupManager {
         siteConfigs[this.currentSiteInfo.domain] = configId;
         
         await this.setStorageData('siteConfigs', siteConfigs);
-        document.getElementById('quickFillBtn').disabled = false;
-    }
+        document.getElementById('quickFillBtn').disabled = false;    }
 
     // 隐藏配置列表
     hideConfigList() {
-        document.getElementById('configList').style.display = 'none';    }
-    
-    // 加载本地验证码
-    async loadLocalCodes() {
-        try {
-            // 使用新的加密本地存储管理器
-            const configs = await this.localStorageManager.getAllLocalConfigs();
-            this.localCodes = configs;
-            this.renderLocalCodes();
-        } catch (error) {
-            console.error('加载本地验证码失败:', error);
-            this.localCodes = [];
-            this.renderLocalCodes();
-        }
-    }
-
-    // 渲染本地验证码
-    renderLocalCodes() {
-        const localCodesContainer = document.getElementById('localCodes');
-        
-        if (this.localCodes.length === 0) {
-            localCodesContainer.innerHTML = `                
-                    <div class="empty-state">
-                    <div class="empty-icon">📭</div>
-                    <p>暂无实时验证码</p>
-                    <p class="empty-tip">在设置中添加实时加载的验证码</p>
-                </div>
-            `;
-            return;
-        }
-
-        localCodesContainer.innerHTML = this.localCodes.map(config => `
-            <div class="code-item">
-                <div class="code-header">
-                    <div class="code-name">${config.name}</div>
-                    <div class="code-timer">
-                        <div class="timer-circle">
-                            <div class="timer-progress"></div>
-                        </div>
-                        <span>30</span>
-                    </div>
-                </div>
-                <div class="code-value" data-id="${config.id}" data-secret="${config.secret}">------</div>
-            </div>
-        `).join('');
-
-        // 更新验证码
-        this.updateLocalCodesDisplay();
-
-        // 添加复制功能
-        localCodesContainer.querySelectorAll('.code-value').forEach(element => {
-            element.addEventListener('click', () => {
-                navigator.clipboard.writeText(element.textContent);
-                this.showMessage('验证码已复制', 'success');            });        });
-    }
-    
-    // 更新本地验证码显示
-    async updateLocalCodesDisplay() {
-        console.log('开始更新本地验证码显示，配置数量:', this.localCodes.length);
-        
-        for (const config of this.localCodes) {            // 优先使用配置ID作为选择器，这样即使有重复的secret也能找到正确的元素
-            const element = document.querySelector(`[data-id="${config.id}"]`);
-            console.log('处理配置:', config.name, '元素找到:', !!element);
-            
-            if (element) {
-                try {
-                    // 验证密钥是否存在
-                    if (!config.secret) {
-                        console.error('配置密钥为空:', config.name);
-                        element.textContent = '密钥缺失';
-                        continue;
-                    }
-                      const code = await this.totpGenerator.generateTOTP(config.secret);
-                      if (code) {
-                        element.textContent = code;
-                    } else {
-                        element.textContent = '------';
-                        console.error('生成验证码失败（返回null）:', config.name);
-                    }
-                } catch (error) {
-                    element.textContent = '------';
-                    console.error('生成验证码出错:', error, '配置:', config.name);
-                    console.error('错误详情:', error.message, error.stack);
-                }
-            }
-        }
-    }// 刷新本地验证码
-    async refreshLocalCodes() {
-        // 首先同步认证状态
-        if (this.authenticated && !this.localAuthenticated) {
-            this.localAuthenticated = true;
-        }
-        
-        if (this.localAuthenticated) {
-            this.showLocalCodes();
-            await this.loadLocalCodes();
-        } else {
-            // 显示认证界面
-            document.getElementById('localAuthSection').style.display = 'block';
-            document.getElementById('localCodes').style.display = 'none';
-        }
+        document.getElementById('configList').style.display = 'none';
     }
 
     // 开始本地验证码更新
     startLocalCodeUpdates() {
-        this.updateInterval = setInterval(() => {
-            if (this.localAuthenticated && this.currentTab === 'local') {
-                this.updateLocalCodesDisplay();
-                this.updateTimerDisplay();
-            }
-        }, 1000);    }
-    
-    // 更新计时器显示
-    updateTimerDisplay() {
-        const progress = this.totpGenerator.getCodeProgress();
-        
-        document.querySelectorAll('.timer-progress').forEach(element => {
-            const rotation = (progress.progress / 100) * 360;
-            element.style.transform = `rotate(${rotation}deg)`;
-        });
-
-        document.querySelectorAll('.code-timer span').forEach(element => {
-            element.textContent = progress.timeRemaining.toString();
-        });
-
-        // 如果快到期了，重新生成验证码
-        if (progress.timeRemaining <= 1) {
-            setTimeout(() => this.updateLocalCodesDisplay(), 100);
+        // 由统一的TOTP管理器处理验证码更新
+        // 这里只需要确保在切换到本地标签页时初始化管理器
+        if (this.localAuthenticated && this.currentTab === 'local') {
+            this.initializeTOTPManager();
         }
-    }// 开始摄像头扫描
+    }
+
+    // 开始摄像头扫描
     async startCameraScanning() {
         const videoElement = document.getElementById('cameraVideo');
         const canvasElement = document.getElementById('scanCanvas');
@@ -1482,6 +1357,17 @@ class PopupManager {
         tabContents.forEach(content => {
             content.style.display = 'block';
         });
+    }
+
+    // 初始化TOTP管理器
+    async initializeTOTPManager() {
+        try {
+            console.log('初始化弹出页面TOTP管理器...');
+            await this.totpConfigManager.initPopup();
+            console.log('TOTP管理器初始化完成');
+        } catch (error) {
+            console.error('初始化TOTP管理器失败:', error);
+        }
     }
 }
 
